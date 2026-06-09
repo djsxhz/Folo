@@ -1,6 +1,32 @@
 import UIKit
 import WebKit
 
+/// Bilibili video quality options
+enum BilibiliQuality: Int, CaseIterable {
+    case q360p = 16
+    case q480p = 32
+    case q720p = 64
+    case q1080p = 80
+
+    var displayName: String {
+        switch self {
+        case .q360p: return "360P"
+        case .q480p: return "480P"
+        case .q720p: return "720P"
+        case .q1080p: return "1080P"
+        }
+    }
+
+    static var defaultQuality: BilibiliQuality {
+        let saved = UserDefaults.standard.integer(forKey: "bilibili_quality")
+        return BilibiliQuality(rawValue: saved) ?? .q1080p
+    }
+
+    func save() {
+        UserDefaults.standard.set(rawValue, forKey: "bilibili_quality")
+    }
+}
+
 /// Full-screen video player that embeds the official YouTube / Bilibili
 /// players inside a `WKWebView`.
 final class VideoPlayerVC: UIViewController {
@@ -8,6 +34,8 @@ final class VideoPlayerVC: UIViewController {
     private let platform: Platform
     private var webView: WKWebView?
     private let activity = UIActivityIndicatorView(style: .whiteLarge)
+    private var qualityButton: UIButton?
+    private var currentQuality: BilibiliQuality = .defaultQuality
 
     init(entry: VideoEntry, platform: Platform) {
         self.entry = entry
@@ -26,6 +54,7 @@ final class VideoPlayerVC: UIViewController {
         setupWebView()
         setupActivity()
         setupGestures()
+        setupQualityButton()
         load()
     }
 
@@ -63,6 +92,63 @@ final class VideoPlayerVC: UIViewController {
         installCloseGestures(on: view)
     }
 
+    private func setupQualityButton() {
+        // Only show quality button for Bilibili
+        let resolvedPlatform = Self.resolvePlatform(pageURL: entry.pageURL, fallback: platform)
+        guard resolvedPlatform == .bilibili else { return }
+
+        let button = UIButton(type: .system)
+        button.setTitle(currentQuality.displayName, for: .normal)
+        button.setTitleColor(.white, for: .normal)
+        button.backgroundColor = UIColor.black.withAlphaComponent(0.6)
+        button.layer.cornerRadius = 6
+        button.contentEdgeInsets = UIEdgeInsets(top: 6, left: 12, bottom: 6, right: 12)
+        button.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: .medium)
+        button.addTarget(self, action: #selector(qualityButtonTapped), for: .touchUpInside)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(button)
+
+        NSLayoutConstraint.activate([
+            button.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
+            button.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -12),
+        ])
+
+        self.qualityButton = button
+    }
+
+    @objc private func qualityButtonTapped() {
+        let alert = UIAlertController(title: "画质选择", message: nil, preferredStyle: .actionSheet)
+
+        for quality in BilibiliQuality.allCases {
+            let title = quality == currentQuality ? "✓ \(quality.displayName)" : quality.displayName
+            let action = UIAlertAction(title: title, style: .default) { [weak self] _ in
+                self?.changeQuality(to: quality)
+            }
+            alert.addAction(action)
+        }
+
+        alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+
+        // For iPad, set sourceView to avoid crash
+        if let popover = alert.popoverPresentationController {
+            popover.sourceView = qualityButton
+            popover.sourceRect = qualityButton?.bounds ?? .zero
+        }
+
+        present(alert, animated: true)
+    }
+
+    private func changeQuality(to quality: BilibiliQuality) {
+        currentQuality = quality
+        quality.save()
+        qualityButton?.setTitle(quality.displayName, for: .normal)
+
+        // Reload the player with new quality
+        webView?.stopLoading()
+        activity.startAnimating()
+        load()
+    }
+
     private func installCloseGestures(on targetView: UIView) {
         let pan = UIPanGestureRecognizer(target: self, action: #selector(handleClosePan(_:)))
         pan.delegate = self
@@ -78,7 +164,7 @@ final class VideoPlayerVC: UIViewController {
 
     private func load() {
         let resolvedPlatform = Self.resolvePlatform(pageURL: entry.pageURL, fallback: platform)
-        guard let embed = Self.embedURL(pageURL: entry.pageURL, platform: resolvedPlatform),
+        guard let embed = Self.embedURL(pageURL: entry.pageURL, platform: resolvedPlatform, currentQuality: currentQuality),
               let url = URL(string: embed) else {
             showError()
             return
@@ -142,6 +228,10 @@ final class VideoPlayerVC: UIViewController {
     // MARK: - Embed URL
 
     static func embedURL(pageURL: String, platform: Platform) -> String? {
+        return embedURL(pageURL: pageURL, platform: platform, currentQuality: .defaultQuality)
+    }
+
+    static func embedURL(pageURL: String, platform: Platform, currentQuality: BilibiliQuality) -> String? {
         switch platform {
         case .youtube:
             guard let id = youtubeID(from: pageURL) else { return nil }
@@ -165,9 +255,9 @@ final class VideoPlayerVC: UIViewController {
                 URLQueryItem(name: "muted", value: "false"),
                 URLQueryItem(name: "highQuality", value: "true"),
                 URLQueryItem(name: "high_quality", value: "1"),
-                // Request 1080P (qn=80). Only honored when a valid SESSDATA
-                // login cookie is present; otherwise Bilibili caps the stream.
-                URLQueryItem(name: "qn", value: "80"),
+                // Request specific quality via qn parameter.
+                // Only honored when a valid SESSDATA login cookie is present.
+                URLQueryItem(name: "qn", value: "\(currentQuality.rawValue)"),
                 URLQueryItem(name: "as_wide", value: "1"),
                 URLQueryItem(name: "bvid", value: bvid),
             ]
@@ -217,24 +307,10 @@ final class VideoPlayerVC: UIViewController {
               overflow: hidden;
               background: #000;
             }
-            /* Center the player and keep a 16:9 box that fits the screen,
-               leaving symmetric black bars (matches Folo's web player). */
-            body {
-              display: flex;
-              align-items: center;
-              justify-content: center;
-            }
-            .player {
-              position: relative;
-              width: min(100vw, calc(100vh * 16 / 9));
-              height: min(100vh, calc(100vw * 9 / 16));
-              background: #000;
-            }
             iframe {
               position: absolute;
               left: 0;
               top: 0;
-              display: block;
               width: 100%;
               height: 100%;
               border: 0;
@@ -243,14 +319,12 @@ final class VideoPlayerVC: UIViewController {
           </style>
         </head>
         <body>
-          <div class="player">
-            <iframe
-              src="\(escapedURL)"
-              allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-              allowfullscreen
-              webkitallowfullscreen
-              referrerpolicy="strict-origin-when-cross-origin"></iframe>
-          </div>
+          <iframe
+            src="\(escapedURL)"
+            allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+            allowfullscreen
+            webkitallowfullscreen
+            referrerpolicy="strict-origin-when-cross-origin"></iframe>
         </body>
         </html>
         """
