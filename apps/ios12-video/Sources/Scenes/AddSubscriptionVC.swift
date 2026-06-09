@@ -32,7 +32,7 @@ final class AddSubscriptionVC: UIViewController {
 
     private func setupUI() {
         textField.translatesAutoresizingMaskIntoConstraints = false
-        textField.placeholder = "粘贴 YouTube 或 Bilibili 链接"
+        textField.placeholder = "粘贴 RSS / YouTube / Bilibili 链接"
         textField.borderStyle = .roundedRect
         textField.autocapitalizationType = .none
         textField.autocorrectionType = .no
@@ -50,10 +50,12 @@ final class AddSubscriptionVC: UIViewController {
         hintLabel.textColor = Theme.secondaryLabel
         hintLabel.text = """
         支持的格式:
+        • 任意 RSS / Atom 源地址(http 或 https 开头)
+        • rsshub:// 路由(如 rsshub://youtube/user/@handle)
         • YouTube 频道链接(.../channel/UC...)或频道 ID(UC 开头)
         • Bilibili UP 主空间链接(space.bilibili.com/UID)或 UID
 
-        Bilibili 通过 RSSHub 获取,可在网络不通时更换实例。
+        RSSHub 路由与 Bilibili 通过 RSSHub 实例获取,可在设置中更换实例。
         """
         view.addSubview(hintLabel)
 

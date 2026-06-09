@@ -4,12 +4,16 @@ import Foundation
 enum Platform: String, Codable {
     case youtube
     case bilibili
+    /// A generic RSS/Atom feed (any source, e.g. a self-hosted feed or an
+    /// RSSHub route that isn't YouTube/Bilibili).
+    case rss
 
     /// Display name shown in the UI.
     var displayName: String {
         switch self {
         case .youtube: return "YouTube"
         case .bilibili: return "Bilibili"
+        case .rss: return "RSS"
         }
     }
 }

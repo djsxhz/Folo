@@ -121,6 +121,9 @@ final class VideoPlayerVC: UIViewController {
                 URLQueryItem(name: "bvid", value: bvid),
             ]
             return comps.url?.absoluteString
+        case .rss:
+            // Generic feeds have no embeddable player; open the entry's own page.
+            return pageURL.hasPrefix("http") ? pageURL : nil
         }
     }
 

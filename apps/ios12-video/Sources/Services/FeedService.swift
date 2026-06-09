@@ -19,7 +19,7 @@ enum FeedService {
 
         var errorDescription: String? {
             switch self {
-            case .invalidInput: return "无法识别该链接,请粘贴 YouTube 频道或 Bilibili UP 主链接"
+            case .invalidInput: return "无法识别该链接,请粘贴 RSS / Atom 源地址、rsshub:// 路由,或 YouTube 频道 / Bilibili UP 主链接"
             case .network(let msg): return "网络错误:\(msg)"
             case .parse: return "订阅源解析失败"
             }
@@ -35,12 +35,28 @@ enum FeedService {
     // MARK: - Input resolution
 
     /// Resolve arbitrary user input (a pasted URL or raw id) into a feed URL.
+    ///
+    /// Supported, in priority order:
+    /// 1. `rsshub://route/...` — expanded against the configured RSSHub instance.
+    /// 2. A direct feed URL (YouTube `feeds/videos.xml`, any other http(s) RSS/Atom).
+    /// 3. A YouTube channel URL / `UC...` channel id.
+    /// 4. A Bilibili space URL / raw numeric UID.
     static func resolve(input raw: String) -> Resolved? {
         let input = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !input.isEmpty else { return nil }
 
-        // --- YouTube ---
-        // Direct channel id form: UCxxxxxxxx
+        // --- rsshub:// protocol ---
+        // e.g. rsshub://youtube/user/@handle  ->  <rsshubBase>/youtube/user/@handle
+        if let r = input.range(of: "rsshub://", options: [.caseInsensitive, .anchored]) {
+            let route = String(input[r.upperBound...])
+            guard !route.isEmpty else { return nil }
+            let base = rsshubBase.hasSuffix("/") ? String(rsshubBase.dropLast()) : rsshubBase
+            let path = route.hasPrefix("/") ? route : "/" + route
+            let platform = inferPlatform(fromRoute: route)
+            return Resolved(platform: platform, feedURL: base + path)
+        }
+
+        // --- YouTube channel id form: UCxxxxxxxx ---
         if input.hasPrefix("UC"), input.count >= 20, !input.contains(" "), !input.contains("/") {
             return Resolved(
                 platform: .youtube,
@@ -48,16 +64,30 @@ enum FeedService {
             )
         }
 
-        if let url = URL(string: input), let host = url.host?.lowercased() {
+        if let url = URL(string: input), let scheme = url.scheme?.lowercased(),
+           scheme == "http" || scheme == "https" {
+            let host = url.host?.lowercased() ?? ""
+
+            // A YouTube channel page: try to derive its Atom feed.
             if host.contains("youtube.com") || host == "youtu.be" {
-                return resolveYouTube(url)
+                if let yt = resolveYouTube(url) { return yt }
+                // Not a /channel/ URL (e.g. a direct feeds/videos.xml or a
+                // /@handle page). Fall through to generic handling below.
             }
+
+            // A Bilibili space page: route through RSSHub.
             if host.contains("bilibili.com") {
-                return resolveBilibili(url)
+                if let bili = resolveBilibili(url) { return bili }
             }
+
+            // Any other http(s) link is treated as a direct RSS/Atom feed URL.
+            // This covers self-hosted feeds, RSSHub routes pasted as full URLs,
+            // and YouTube's own feeds/videos.xml endpoint.
+            let platform = inferPlatform(fromURL: url)
+            return Resolved(platform: platform, feedURL: input)
         }
 
-        // Raw Bilibili UID (all digits).
+        // --- Raw Bilibili UID (all digits) ---
         if input.allSatisfy({ $0.isNumber }) {
             return Resolved(
                 platform: .bilibili,
@@ -66,6 +96,23 @@ enum FeedService {
         }
 
         return nil
+    }
+
+    /// Best-effort platform guess from an RSSHub route (e.g. "youtube/user/...").
+    private static func inferPlatform(fromRoute route: String) -> Platform {
+        let lower = route.lowercased()
+        if lower.hasPrefix("youtube") || lower.hasPrefix("/youtube") { return .youtube }
+        if lower.hasPrefix("bilibili") || lower.hasPrefix("/bilibili") { return .bilibili }
+        return .rss
+    }
+
+    /// Best-effort platform guess from a direct feed URL so the player knows
+    /// how to embed entries.
+    private static func inferPlatform(fromURL url: URL) -> Platform {
+        let host = url.host?.lowercased() ?? ""
+        if host.contains("youtube.com") || host == "youtu.be" { return .youtube }
+        if host.contains("bilibili.com") { return .bilibili }
+        return .rss
     }
 
     private static func resolveYouTube(_ url: URL) -> Resolved? {
