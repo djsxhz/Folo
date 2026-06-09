@@ -42,6 +42,7 @@ final class VideoPlayerVC: UIViewController {
         webView.scrollView.contentInsetAdjustmentBehavior = .never
         webView.navigationDelegate = self
         view.addSubview(webView)
+        installCloseGestures(on: webView)
         self.webView = webView
     }
 
@@ -56,13 +57,20 @@ final class VideoPlayerVC: UIViewController {
     }
 
     private func setupGestures() {
-        let swipe = UISwipeGestureRecognizer(target: self, action: #selector(close))
-        swipe.direction = .right
-        view.addGestureRecognizer(swipe)
+        installCloseGestures(on: view)
+    }
 
-        let edgeSwipe = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(close))
+    private func installCloseGestures(on targetView: UIView) {
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(handleClosePan(_:)))
+        pan.delegate = self
+        pan.cancelsTouchesInView = false
+        targetView.addGestureRecognizer(pan)
+
+        let edgeSwipe = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(handleClosePan(_:)))
         edgeSwipe.edges = .left
-        view.addGestureRecognizer(edgeSwipe)
+        edgeSwipe.delegate = self
+        edgeSwipe.cancelsTouchesInView = false
+        targetView.addGestureRecognizer(edgeSwipe)
     }
 
     private func load() {
@@ -83,7 +91,13 @@ final class VideoPlayerVC: UIViewController {
         case .rss:
             break
         }
-        webView?.load(request)
+
+        if resolvedPlatform == .rss {
+            webView?.load(request)
+        } else {
+            let html = Self.playerHTML(embedURL: embed, platform: resolvedPlatform)
+            webView?.loadHTMLString(html, baseURL: Self.baseURL(for: url, platform: resolvedPlatform))
+        }
     }
 
     private func showError() {
@@ -104,6 +118,17 @@ final class VideoPlayerVC: UIViewController {
         dismiss(animated: true)
     }
 
+    @objc private func handleClosePan(_ recognizer: UIPanGestureRecognizer) {
+        guard recognizer.state == .ended else { return }
+        let translation = recognizer.translation(in: view)
+        let velocity = recognizer.velocity(in: view)
+        guard translation.x > 120,
+              abs(translation.y) < 90,
+              velocity.x > 250
+        else { return }
+        close()
+    }
+
     deinit {
         webView?.stopLoading()
         webView?.navigationDelegate = nil
@@ -117,16 +142,27 @@ final class VideoPlayerVC: UIViewController {
         switch platform {
         case .youtube:
             guard let id = youtubeID(from: pageURL) else { return nil }
-            return "https://www.youtube-nocookie.com/embed/\(id)?autoplay=1&playsinline=1"
+            var comps = URLComponents(string: "https://www.youtube-nocookie.com/embed/\(id)")!
+            comps.queryItems = [
+                URLQueryItem(name: "autoplay", value: "1"),
+                URLQueryItem(name: "controls", value: "1"),
+                URLQueryItem(name: "fs", value: "1"),
+                URLQueryItem(name: "origin", value: "https://www.youtube-nocookie.com"),
+                URLQueryItem(name: "playsinline", value: "1"),
+                URLQueryItem(name: "rel", value: "0"),
+            ]
+            return comps.url?.absoluteString
         case .bilibili:
             guard let bvid = bilibiliBVID(from: pageURL) else { return nil }
-            var comps = URLComponents(string: "https://www.bilibili.com/blackboard/newplayer.html")!
+            var comps = URLComponents(string: "https://player.bilibili.com/player.html")!
             comps.queryItems = [
                 URLQueryItem(name: "isOutside", value: "true"),
-                URLQueryItem(name: "autoplay", value: "true"),
-                URLQueryItem(name: "danmaku", value: "true"),
+                URLQueryItem(name: "autoplay", value: "false"),
+                URLQueryItem(name: "danmaku", value: "false"),
                 URLQueryItem(name: "muted", value: "false"),
                 URLQueryItem(name: "highQuality", value: "true"),
+                URLQueryItem(name: "high_quality", value: "1"),
+                URLQueryItem(name: "as_wide", value: "1"),
                 URLQueryItem(name: "bvid", value: bvid),
             ]
             return comps.url?.absoluteString
@@ -146,6 +182,73 @@ final class VideoPlayerVC: UIViewController {
     private static func origin(from url: URL) -> String? {
         guard let scheme = url.scheme, let host = url.host else { return nil }
         return "\(scheme)://\(host)"
+    }
+
+    private static func baseURL(for url: URL, platform: Platform) -> URL? {
+        switch platform {
+        case .youtube:
+            return URL(string: "https://www.youtube-nocookie.com")
+        case .bilibili:
+            return URL(string: "https://www.bilibili.com")
+        case .rss:
+            return url
+        }
+    }
+
+    private static func playerHTML(embedURL: String, platform: Platform) -> String {
+        let bottomInset = platform == .youtube ? "64px" : "0"
+        let escapedURL = htmlEscaped(embedURL)
+        return """
+        <!doctype html>
+        <html>
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+          <style>
+            html, body {
+              margin: 0;
+              padding: 0;
+              width: 100%;
+              height: 100%;
+              overflow: hidden;
+              background: #000;
+            }
+            .player {
+              position: fixed;
+              left: 0;
+              top: 0;
+              right: 0;
+              bottom: \(bottomInset);
+              background: #000;
+            }
+            iframe {
+              display: block;
+              width: 100%;
+              height: 100%;
+              border: 0;
+              background: #000;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="player">
+            <iframe
+              src="\(escapedURL)"
+              allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+              allowfullscreen
+              webkitallowfullscreen
+              referrerpolicy="strict-origin-when-cross-origin"></iframe>
+          </div>
+        </body>
+        </html>
+        """
+    }
+
+    private static func htmlEscaped(_ value: String) -> String {
+        return value
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
     }
 
     private static func youtubeID(from url: String) -> String? {
@@ -182,5 +285,18 @@ extension VideoPlayerVC: WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
         activity.stopAnimating()
+    }
+}
+
+extension VideoPlayerVC: UIGestureRecognizerDelegate {
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        if gestureRecognizer is UIScreenEdgePanGestureRecognizer { return true }
+        guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return true }
+        let velocity = pan.velocity(in: view)
+        return velocity.x > abs(velocity.y) * 1.5 && velocity.x > 120
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        return true
     }
 }
