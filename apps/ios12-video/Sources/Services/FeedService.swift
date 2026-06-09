@@ -112,6 +112,9 @@ enum FeedService {
         let host = url.host?.lowercased() ?? ""
         if host.contains("youtube.com") || host == "youtu.be" { return .youtube }
         if host.contains("bilibili.com") { return .bilibili }
+        let path = url.path.lowercased()
+        if path.hasPrefix("/youtube/") { return .youtube }
+        if path.hasPrefix("/bilibili/") { return .bilibili }
         return .rss
     }
 

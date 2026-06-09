@@ -63,15 +63,23 @@ final class VideoPlayerVC: UIViewController {
     }
 
     private func load() {
-        guard let embed = Self.embedURL(pageURL: entry.pageURL, platform: platform),
+        let resolvedPlatform = Self.resolvePlatform(pageURL: entry.pageURL, fallback: platform)
+        guard let embed = Self.embedURL(pageURL: entry.pageURL, platform: resolvedPlatform),
               let url = URL(string: embed) else {
             showError()
             return
         }
         var request = URLRequest(url: url)
-        // Bilibili's player checks the referer.
-        if platform == .bilibili {
+        switch resolvedPlatform {
+        case .youtube:
+            let origin = Self.origin(from: url) ?? "https://www.youtube-nocookie.com"
+            request.setValue(origin, forHTTPHeaderField: "Referer")
+            request.setValue(origin, forHTTPHeaderField: "Origin")
+        case .bilibili:
+            // Bilibili's player checks the referer.
             request.setValue("https://www.bilibili.com", forHTTPHeaderField: "Referer")
+        case .rss:
+            break
         }
         webView?.load(request)
     }
@@ -125,6 +133,19 @@ final class VideoPlayerVC: UIViewController {
             // Generic feeds have no embeddable player; open the entry's own page.
             return pageURL.hasPrefix("http") ? pageURL : nil
         }
+    }
+
+    /// Matches Folo's behavior: prefer the entry URL shape when it is a known
+    /// video URL, even if the subscription itself was added as a generic RSS feed.
+    private static func resolvePlatform(pageURL: String, fallback: Platform) -> Platform {
+        if youtubeID(from: pageURL) != nil { return .youtube }
+        if bilibiliBVID(from: pageURL) != nil { return .bilibili }
+        return fallback
+    }
+
+    private static func origin(from url: URL) -> String? {
+        guard let scheme = url.scheme, let host = url.host else { return nil }
+        return "\(scheme)://\(host)"
     }
 
     private static func youtubeID(from url: String) -> String? {
