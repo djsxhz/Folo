@@ -148,30 +148,23 @@ final class VideoPlayerVC: UIViewController {
     private func load() {
         let resolvedPlatform = Self.resolvePlatform(pageURL: entry.pageURL, fallback: platform)
 
-        // For Bilibili and YouTube, load the full web page directly to get
-        // the complete player with quality selector and proper controls.
-        if resolvedPlatform == .bilibili || resolvedPlatform == .youtube {
-            guard let url = URL(string: entry.pageURL) else {
-                showError()
-                return
-            }
-            var request = URLRequest(url: url)
-            if resolvedPlatform == .bilibili {
-                request.setValue("https://www.bilibili.com", forHTTPHeaderField: "Referer")
-            } else if resolvedPlatform == .youtube {
-                request.setValue("https://www.youtube.com", forHTTPHeaderField: "Referer")
-            }
-            webView?.load(request)
-            return
-        }
-
-        // For RSS, use the original approach
+        // Try loading embed URLs directly without HTML wrapper
         guard let embed = Self.embedURL(pageURL: entry.pageURL, platform: resolvedPlatform, currentQuality: currentQuality),
               let url = URL(string: embed) else {
             showError()
             return
         }
+
         var request = URLRequest(url: url)
+        switch resolvedPlatform {
+        case .youtube:
+            request.setValue("https://www.youtube.com", forHTTPHeaderField: "Referer")
+        case .bilibili:
+            request.setValue("https://www.bilibili.com", forHTTPHeaderField: "Referer")
+        case .rss:
+            break
+        }
+
         webView?.load(request)
     }
 
