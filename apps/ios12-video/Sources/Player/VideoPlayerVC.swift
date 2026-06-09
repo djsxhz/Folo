@@ -93,27 +93,10 @@ final class VideoPlayerVC: UIViewController {
     }
 
     private func setupQualityButton() {
-        // Only show quality button for Bilibili
-        let resolvedPlatform = Self.resolvePlatform(pageURL: entry.pageURL, fallback: platform)
-        guard resolvedPlatform == .bilibili else { return }
-
-        let button = UIButton(type: .system)
-        button.setTitle(currentQuality.displayName, for: .normal)
-        button.setTitleColor(.white, for: .normal)
-        button.backgroundColor = UIColor.black.withAlphaComponent(0.6)
-        button.layer.cornerRadius = 6
-        button.contentEdgeInsets = UIEdgeInsets(top: 6, left: 12, bottom: 6, right: 12)
-        button.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: .medium)
-        button.addTarget(self, action: #selector(qualityButtonTapped), for: .touchUpInside)
-        button.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(button)
-
-        NSLayoutConstraint.activate([
-            button.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
-            button.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -12),
-        ])
-
-        self.qualityButton = button
+        // Quality button is no longer needed for Bilibili since we now load
+        // the full web player which has its own quality selector.
+        // Kept for potential future use with other platforms.
+        return
     }
 
     @objc private func qualityButtonTapped() {
@@ -164,29 +147,32 @@ final class VideoPlayerVC: UIViewController {
 
     private func load() {
         let resolvedPlatform = Self.resolvePlatform(pageURL: entry.pageURL, fallback: platform)
+
+        // For Bilibili and YouTube, load the full web page directly to get
+        // the complete player with quality selector and proper controls.
+        if resolvedPlatform == .bilibili || resolvedPlatform == .youtube {
+            guard let url = URL(string: entry.pageURL) else {
+                showError()
+                return
+            }
+            var request = URLRequest(url: url)
+            if resolvedPlatform == .bilibili {
+                request.setValue("https://www.bilibili.com", forHTTPHeaderField: "Referer")
+            } else if resolvedPlatform == .youtube {
+                request.setValue("https://www.youtube.com", forHTTPHeaderField: "Referer")
+            }
+            webView?.load(request)
+            return
+        }
+
+        // For RSS, use the original approach
         guard let embed = Self.embedURL(pageURL: entry.pageURL, platform: resolvedPlatform, currentQuality: currentQuality),
               let url = URL(string: embed) else {
             showError()
             return
         }
         var request = URLRequest(url: url)
-        switch resolvedPlatform {
-        case .youtube:
-            let origin = Self.origin(from: url) ?? "https://www.youtube-nocookie.com"
-            request.setValue(origin, forHTTPHeaderField: "Referer")
-            request.setValue(origin, forHTTPHeaderField: "Origin")
-        case .bilibili:
-            request.setValue("https://www.bilibili.com", forHTTPHeaderField: "Referer")
-        case .rss:
-            break
-        }
-
-        if resolvedPlatform == .rss {
-            webView?.load(request)
-        } else {
-            let html = Self.playerHTML(embedURL: embed)
-            webView?.loadHTMLString(html, baseURL: Self.baseURL(for: url, platform: resolvedPlatform))
-        }
+        webView?.load(request)
     }
 
     private func showError() {

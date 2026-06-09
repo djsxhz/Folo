@@ -99,7 +99,11 @@ extension SettingsVC: UITableViewDataSource, UITableViewDelegate {
     }
 
     func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-        return "登录 Bilibili 账号后可解锁 720P/1080P 等更高清晰度。不登录仅做播放，画质受官方限制。"
+        if loggedIn {
+            return "已登录 Bilibili 账号。如需切换账号，可先退出登录，然后在任意视频页面重新登录。"
+        } else {
+            return "在任意 Bilibili 视频页面点击登录按钮即可登录账号，解锁 720P/1080P 等更高清晰度。"
+        }
     }
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -111,9 +115,10 @@ extension SettingsVC: UITableViewDataSource, UITableViewDelegate {
             cell.accessoryType = .none
             cell.detailTextLabel?.text = nil
         } else {
-            cell.textLabel?.text = "登录 Bilibili"
-            cell.textLabel?.textColor = Theme.accent
-            cell.accessoryType = .disclosureIndicator
+            cell.textLabel?.text = "未登录"
+            cell.textLabel?.textColor = Theme.secondaryLabel
+            cell.accessoryType = .none
+            cell.selectionStyle = .none
         }
         return cell
     }
@@ -122,8 +127,7 @@ extension SettingsVC: UITableViewDataSource, UITableViewDelegate {
         tableView.deselectRow(at: indexPath, animated: true)
         if loggedIn {
             confirmLogout()
-        } else {
-            presentLogin()
         }
+        // If not logged in, do nothing - user should login via video page
     }
 }
