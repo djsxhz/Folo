@@ -38,7 +38,7 @@ final class ImageLoader {
             return nil
         }
 
-        let task = session.dataTask(with: url) { [weak self] data, _, _ in
+        let task = session.dataTask(with: Self.request(for: url)) { [weak self] data, _, _ in
             guard let data = data, let image = UIImage(data: data) else {
                 DispatchQueue.main.async { completion(nil) }
                 return
@@ -49,5 +49,14 @@ final class ImageLoader {
         }
         task.resume()
         return task
+    }
+
+    private static func request(for url: URL) -> URLRequest {
+        var request = URLRequest(url: url)
+        if let host = url.host?.lowercased(), host.contains("hdslb.com") {
+            request.setValue("https://www.bilibili.com", forHTTPHeaderField: "Referer")
+        }
+        request.setValue("Mozilla/5.0 (compatible; Flo/1.0)", forHTTPHeaderField: "User-Agent")
+        return request
     }
 }

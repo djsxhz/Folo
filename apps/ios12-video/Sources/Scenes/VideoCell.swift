@@ -1,7 +1,8 @@
 import UIKit
 
-/// A single video row: thumbnail, title, relative date, and an unread dot.
-final class VideoCell: UITableViewCell {
+/// A Folo-like video card: large 16:9 thumbnail, title, relative date, and an
+/// unread dot. Used in the video grid.
+final class VideoCell: UICollectionViewCell {
     static let reuseID = "VideoCell"
 
     private let thumbnail = UIImageView()
@@ -9,12 +10,10 @@ final class VideoCell: UITableViewCell {
     private let dateLabel = UILabel()
     private let unreadDot = UIView()
 
-    /// The thumbnail URL this cell is currently loading, used to guard against
-    /// stale completions when cells are recycled.
     private var thumbnailURL: String?
 
-    override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
-        super.init(style: style, reuseIdentifier: reuseIdentifier)
+    override init(frame: CGRect) {
+        super.init(frame: frame)
         setupUI()
     }
 
@@ -22,17 +21,23 @@ final class VideoCell: UITableViewCell {
 
     private func setupUI() {
         backgroundColor = Theme.background
+        contentView.backgroundColor = Theme.background
 
         thumbnail.translatesAutoresizingMaskIntoConstraints = false
         thumbnail.contentMode = .scaleAspectFill
         thumbnail.clipsToBounds = true
-        thumbnail.layer.cornerRadius = 6
+        thumbnail.layer.cornerRadius = 4
         thumbnail.backgroundColor = Theme.separator
         contentView.addSubview(thumbnail)
 
+        unreadDot.translatesAutoresizingMaskIntoConstraints = false
+        unreadDot.backgroundColor = Theme.accent
+        unreadDot.layer.cornerRadius = 4
+        contentView.addSubview(unreadDot)
+
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.numberOfLines = 2
-        titleLabel.font = .systemFont(ofSize: 15, weight: .medium)
+        titleLabel.font = .systemFont(ofSize: 14, weight: .medium)
         titleLabel.textColor = Theme.label
         contentView.addSubview(titleLabel)
 
@@ -41,31 +46,25 @@ final class VideoCell: UITableViewCell {
         dateLabel.textColor = Theme.secondaryLabel
         contentView.addSubview(dateLabel)
 
-        unreadDot.translatesAutoresizingMaskIntoConstraints = false
-        unreadDot.backgroundColor = Theme.accent
-        unreadDot.layer.cornerRadius = 4
-        contentView.addSubview(unreadDot)
-
-        // Thumbnail keeps a 16:9 aspect ratio, ~140pt wide.
         NSLayoutConstraint.activate([
-            thumbnail.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 12),
-            thumbnail.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
-            thumbnail.widthAnchor.constraint(equalToConstant: 140),
-            thumbnail.heightAnchor.constraint(equalToConstant: 78),
+            thumbnail.topAnchor.constraint(equalTo: contentView.topAnchor),
+            thumbnail.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            thumbnail.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            thumbnail.heightAnchor.constraint(equalTo: thumbnail.widthAnchor, multiplier: 9.0 / 16.0),
 
-            unreadDot.leadingAnchor.constraint(equalTo: thumbnail.trailingAnchor, constant: 10),
-            unreadDot.centerYAnchor.constraint(equalTo: titleLabel.firstBaselineAnchor, constant: -4),
+            unreadDot.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            unreadDot.topAnchor.constraint(equalTo: thumbnail.bottomAnchor, constant: 11),
             unreadDot.widthAnchor.constraint(equalToConstant: 8),
             unreadDot.heightAnchor.constraint(equalToConstant: 8),
 
-            titleLabel.leadingAnchor.constraint(equalTo: unreadDot.trailingAnchor, constant: 8),
-            titleLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -12),
-            titleLabel.topAnchor.constraint(equalTo: thumbnail.topAnchor, constant: 2),
+            titleLabel.topAnchor.constraint(equalTo: thumbnail.bottomAnchor, constant: 7),
+            titleLabel.leadingAnchor.constraint(equalTo: unreadDot.trailingAnchor, constant: 7),
+            titleLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
 
+            dateLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 4),
             dateLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
-            dateLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -12),
-            dateLabel.topAnchor.constraint(greaterThanOrEqualTo: titleLabel.bottomAnchor, constant: 4),
-            dateLabel.bottomAnchor.constraint(lessThanOrEqualTo: thumbnail.bottomAnchor),
+            dateLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            dateLabel.bottomAnchor.constraint(lessThanOrEqualTo: contentView.bottomAnchor),
         ])
     }
 
@@ -74,14 +73,12 @@ final class VideoCell: UITableViewCell {
         dateLabel.text = Self.relativeDate(entry.published)
         unreadDot.isHidden = entry.isRead
 
-        // Read entries get dimmed titles, like Folo's read state.
         titleLabel.textColor = entry.isRead ? Theme.secondaryLabel : Theme.label
 
         thumbnail.image = nil
         thumbnailURL = entry.thumbnailURL
         if let urlString = entry.thumbnailURL {
             ImageLoader.shared.load(urlString) { [weak self] image in
-                // Guard against cell reuse: only apply if still the same URL.
                 guard let self = self, self.thumbnailURL == urlString else { return }
                 self.thumbnail.image = image
             }
@@ -101,17 +98,16 @@ final class VideoCell: UITableViewCell {
         return f
     }()
 
-    /// A compact relative date string (e.g. "3 天前"), falling back to an absolute date.
     private static func relativeDate(_ date: Date?) -> String {
         guard let date = date else { return "" }
         let seconds = -date.timeIntervalSinceNow
-        if seconds < 60 { return "刚刚" }
+        if seconds < 60 { return "\u{521A}\u{521A}" }
         let minutes = Int(seconds / 60)
-        if minutes < 60 { return "\(minutes) 分钟前" }
+        if minutes < 60 { return "\(minutes) \u{5206}\u{949F}\u{524D}" }
         let hours = minutes / 60
-        if hours < 24 { return "\(hours) 小时前" }
+        if hours < 24 { return "\(hours) \u{5C0F}\u{65F6}\u{524D}" }
         let days = hours / 24
-        if days < 30 { return "\(days) 天前" }
+        if days < 30 { return "\(days) \u{5929}\u{524D}" }
         return dateFormatter.string(from: date)
     }
 }

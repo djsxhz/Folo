@@ -2,9 +2,7 @@ import UIKit
 import WebKit
 
 /// Full-screen video player that embeds the official YouTube / Bilibili
-/// players inside a `WKWebView`. The web view is created on `viewDidLoad`
-/// and torn down on `deinit` / dismissal to release memory promptly — this
-/// matters a lot on a 1GB iPad Air 1.
+/// players inside a `WKWebView`.
 final class VideoPlayerVC: UIViewController {
     private let entry: VideoEntry
     private let platform: Platform
@@ -19,27 +17,21 @@ final class VideoPlayerVC: UIViewController {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
+    override var prefersStatusBarHidden: Bool { return true }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .black
-        title = entry.title
-
-        // Close button (we are presented modally).
-        navigationItem.leftBarButtonItem = UIBarButtonItem(
-            barButtonSystemItem: .done,
-            target: self,
-            action: #selector(close)
-        )
 
         setupWebView()
         setupActivity()
+        setupGestures()
         load()
     }
 
     private func setupWebView() {
         let config = WKWebViewConfiguration()
         config.allowsInlineMediaPlayback = true
-        // Allow autoplay without a user gesture so the embed starts immediately.
         config.mediaTypesRequiringUserActionForPlayback = []
 
         let webView = WKWebView(frame: view.bounds, configuration: config)
@@ -47,6 +39,7 @@ final class VideoPlayerVC: UIViewController {
         webView.backgroundColor = .black
         webView.isOpaque = false
         webView.scrollView.isScrollEnabled = false
+        webView.scrollView.contentInsetAdjustmentBehavior = .never
         webView.navigationDelegate = self
         view.addSubview(webView)
         self.webView = webView
@@ -60,6 +53,16 @@ final class VideoPlayerVC: UIViewController {
             activity.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             activity.centerYAnchor.constraint(equalTo: view.centerYAnchor),
         ])
+    }
+
+    private func setupGestures() {
+        let swipe = UISwipeGestureRecognizer(target: self, action: #selector(close))
+        swipe.direction = .right
+        view.addGestureRecognizer(swipe)
+
+        let edgeSwipe = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(close))
+        edgeSwipe.edges = .left
+        view.addGestureRecognizer(edgeSwipe)
     }
 
     private func load() {
@@ -76,7 +79,6 @@ final class VideoPlayerVC: UIViewController {
             request.setValue(origin, forHTTPHeaderField: "Referer")
             request.setValue(origin, forHTTPHeaderField: "Origin")
         case .bilibili:
-            // Bilibili's player checks the referer.
             request.setValue("https://www.bilibili.com", forHTTPHeaderField: "Referer")
         case .rss:
             break
@@ -87,7 +89,7 @@ final class VideoPlayerVC: UIViewController {
     private func showError() {
         activity.stopAnimating()
         let label = UILabel()
-        label.text = "无法播放该视频"
+        label.text = "\u{65E0}\u{6CD5}\u{64AD}\u{653E}\u{8BE5}\u{89C6}\u{9891}"
         label.textColor = .white
         label.textAlignment = .center
         label.translatesAutoresizingMaskIntoConstraints = false
@@ -103,16 +105,14 @@ final class VideoPlayerVC: UIViewController {
     }
 
     deinit {
-        // Stop loading and detach to free the web content process quickly.
         webView?.stopLoading()
         webView?.navigationDelegate = nil
         webView?.removeFromSuperview()
         webView = nil
     }
 
-    // MARK: - Embed URL (ported from the web app's transformVideoUrl)
+    // MARK: - Embed URL
 
-    /// Builds the embeddable player URL for a given video page URL.
     static func embedURL(pageURL: String, platform: Platform) -> String? {
         switch platform {
         case .youtube:
@@ -120,17 +120,17 @@ final class VideoPlayerVC: UIViewController {
             return "https://www.youtube-nocookie.com/embed/\(id)?autoplay=1&playsinline=1"
         case .bilibili:
             guard let bvid = bilibiliBVID(from: pageURL) else { return nil }
-            var comps = URLComponents(string: "https://player.bilibili.com/player.html")!
+            var comps = URLComponents(string: "https://www.bilibili.com/blackboard/newplayer.html")!
             comps.queryItems = [
                 URLQueryItem(name: "isOutside", value: "true"),
                 URLQueryItem(name: "autoplay", value: "true"),
                 URLQueryItem(name: "danmaku", value: "true"),
+                URLQueryItem(name: "muted", value: "false"),
                 URLQueryItem(name: "highQuality", value: "true"),
                 URLQueryItem(name: "bvid", value: bvid),
             ]
             return comps.url?.absoluteString
         case .rss:
-            // Generic feeds have no embeddable player; open the entry's own page.
             return pageURL.hasPrefix("http") ? pageURL : nil
         }
     }
@@ -149,12 +149,10 @@ final class VideoPlayerVC: UIViewController {
     }
 
     private static func youtubeID(from url: String) -> String? {
-        // watch?v=ID
         if let comps = URLComponents(string: url),
            let v = comps.queryItems?.first(where: { $0.name == "v" })?.value {
             return v
         }
-        // youtu.be/ID  or  /shorts/ID  or  /embed/ID
         for marker in ["youtu.be/", "/shorts/", "/embed/"] {
             if let r = url.range(of: marker) {
                 let rest = url[r.upperBound...]

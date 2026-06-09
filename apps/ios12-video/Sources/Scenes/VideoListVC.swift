@@ -1,6 +1,6 @@
 import UIKit
 
-/// Video list for a single subscription. Supports:
+/// Video grid for a single subscription. Supports:
 /// - pull-to-refresh,
 /// - "unread only" toggle,
 /// - "mark all as read",
@@ -9,8 +9,20 @@ final class VideoListVC: UIViewController {
 
     private let subscription: Subscription
     private let store = SubscriptionStore.shared
-    private let tableView = UITableView(frame: .zero, style: .plain)
     private let refreshControl = UIRefreshControl()
+
+    private lazy var collectionView: UICollectionView = {
+        let layout = UICollectionViewFlowLayout()
+        layout.minimumLineSpacing = 22
+        layout.minimumInteritemSpacing = 18
+        let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
+        view.backgroundColor = Theme.background
+        view.alwaysBounceVertical = true
+        view.dataSource = self
+        view.delegate = self
+        view.register(VideoCell.self, forCellWithReuseIdentifier: VideoCell.reuseID)
+        return view
+    }()
 
     /// When true, only unread entries are shown.
     private var unreadOnly = false
@@ -33,7 +45,7 @@ final class VideoListVC: UIViewController {
         view.backgroundColor = Theme.background
 
         setupNavigationItems()
-        setupTableView()
+        setupCollectionView()
 
         NotificationCenter.default.addObserver(
             self,
@@ -42,7 +54,6 @@ final class VideoListVC: UIViewController {
             object: nil
         )
 
-        // Fetch on first appearance if we have nothing yet.
         if store.entries(for: subscription.id).isEmpty {
             refresh()
         }
@@ -50,7 +61,13 @@ final class VideoListVC: UIViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        tableView.reloadData()
+        collectionView.reloadData()
+        updateBackgroundView()
+    }
+
+    override func viewWillLayoutSubviews() {
+        super.viewWillLayoutSubviews()
+        collectionView.collectionViewLayout.invalidateLayout()
     }
 
     private func setupNavigationItems() {
@@ -60,14 +77,14 @@ final class VideoListVC: UIViewController {
             target: self,
             action: #selector(markAllReadTapped)
         )
-        markAll.title = "全部已读"
+        markAll.title = "\u{5168}\u{90E8}\u{5DF2}\u{8BFB}"
 
         navigationItem.rightBarButtonItems = [markAll, unreadToggleItem()]
     }
 
     private func unreadToggleItem() -> UIBarButtonItem {
         let item = UIBarButtonItem(
-            title: unreadOnly ? "显示全部" : "仅未读",
+            title: unreadOnly ? "\u{663E}\u{793A}\u{5168}\u{90E8}" : "\u{4EC5}\u{672A}\u{8BFB}",
             style: .plain,
             target: self,
             action: #selector(toggleUnreadOnly)
@@ -75,19 +92,13 @@ final class VideoListVC: UIViewController {
         return item
     }
 
-    private func setupTableView() {
-        tableView.frame = view.bounds
-        tableView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        tableView.backgroundColor = Theme.background
-        tableView.dataSource = self
-        tableView.delegate = self
-        tableView.rowHeight = 94
-        tableView.separatorColor = Theme.separator
-        tableView.register(VideoCell.self, forCellReuseIdentifier: VideoCell.reuseID)
-        view.addSubview(tableView)
+    private func setupCollectionView() {
+        collectionView.frame = view.bounds
+        collectionView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(collectionView)
 
         refreshControl.addTarget(self, action: #selector(refresh), for: .valueChanged)
-        tableView.refreshControl = refreshControl
+        collectionView.refreshControl = refreshControl
     }
 
     // MARK: - Actions
@@ -110,7 +121,8 @@ final class VideoListVC: UIViewController {
     @objc private func toggleUnreadOnly() {
         unreadOnly.toggle()
         navigationItem.rightBarButtonItems = [navigationItem.rightBarButtonItems![0], unreadToggleItem()]
-        tableView.reloadData()
+        collectionView.reloadData()
+        updateBackgroundView()
     }
 
     @objc private func markAllReadTapped() {
@@ -119,37 +131,73 @@ final class VideoListVC: UIViewController {
 
     @objc private func storeDidChange() {
         DispatchQueue.main.async { [weak self] in
-            self?.tableView.reloadData()
+            self?.collectionView.reloadData()
+            self?.updateBackgroundView()
         }
     }
 
     private func showError(_ message: String) {
         let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "好", style: .default))
+        alert.addAction(UIAlertAction(title: "\u{597D}", style: .default))
         present(alert, animated: true)
+    }
+
+    private func updateBackgroundView() {
+        if displayedEntries.isEmpty {
+            let label = UILabel()
+            label.text = unreadOnly
+                ? "\u{6CA1}\u{6709}\u{672A}\u{8BFB}\u{89C6}\u{9891}"
+                : "\u{8FD8}\u{6CA1}\u{6709}\u{89C6}\u{9891}\u{FF0C}\u{4E0B}\u{62C9}\u{5237}\u{65B0}"
+            label.numberOfLines = 0
+            label.textAlignment = .center
+            label.textColor = Theme.secondaryLabel
+            label.font = .systemFont(ofSize: 15)
+            collectionView.backgroundView = label
+        } else {
+            collectionView.backgroundView = nil
+        }
     }
 }
 
-extension VideoListVC: UITableViewDataSource, UITableViewDelegate {
-    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+extension VideoListVC: UICollectionViewDataSource, UICollectionViewDelegateFlowLayout {
+    func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
         return displayedEntries.count
     }
 
-    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: VideoCell.reuseID, for: indexPath) as! VideoCell
-        cell.configure(with: displayedEntries[indexPath.row])
+    func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+        let cell = collectionView.dequeueReusableCell(withReuseIdentifier: VideoCell.reuseID, for: indexPath) as! VideoCell
+        cell.configure(with: displayedEntries[indexPath.item])
         return cell
     }
 
-    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        tableView.deselectRow(at: indexPath, animated: true)
-        let entry = displayedEntries[indexPath.row]
+    func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+        let entry = displayedEntries[indexPath.item]
         store.markRead(entryID: entry.id, in: subscription.id)
 
         let player = VideoPlayerVC(entry: entry, platform: subscription.platform)
-        let nav = UINavigationController(rootViewController: player)
-        nav.modalPresentationStyle = .fullScreen
-        Theme.apply(to: nav.navigationBar)
-        present(nav, animated: true)
+        player.modalPresentationStyle = .fullScreen
+        present(player, animated: true)
+    }
+
+    func collectionView(
+        _ collectionView: UICollectionView,
+        layout collectionViewLayout: UICollectionViewLayout,
+        insetForSectionAt section: Int
+    ) -> UIEdgeInsets {
+        return UIEdgeInsets(top: 14, left: 18, bottom: 24, right: 18)
+    }
+
+    func collectionView(
+        _ collectionView: UICollectionView,
+        layout collectionViewLayout: UICollectionViewLayout,
+        sizeForItemAt indexPath: IndexPath
+    ) -> CGSize {
+        let insets = self.collectionView(collectionView, layout: collectionViewLayout, insetForSectionAt: 0)
+        let available = collectionView.bounds.width - insets.left - insets.right
+        let columns = max(1, min(5, Int(available / 240)))
+        let spacing = CGFloat(columns - 1) * 18
+        let width = floor((available - spacing) / CGFloat(columns))
+        let height = floor(width * 9.0 / 16.0) + 58
+        return CGSize(width: width, height: height)
     }
 }
