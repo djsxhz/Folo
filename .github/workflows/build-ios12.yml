@@ -38,6 +38,12 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
+      # Newer XcodeGen writes objectVersion 77 (Xcode 16) regardless of the
+      # project.yml setting, which the pinned Xcode 15.4 refuses to open.
+      # Force the generated project back to a format 15.4 can read.
+      - name: Force compatible project format
+        run: sed -i '' 's/objectVersion = 77;/objectVersion = 56;/' Flo.xcodeproj/project.pbxproj
+
       - name: Build (unsigned archive)
         run: |
           set -o pipefail
