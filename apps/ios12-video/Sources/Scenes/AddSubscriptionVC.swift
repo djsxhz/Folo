@@ -113,17 +113,18 @@ final class AddSubscriptionVC: UIViewController {
         }
 
         setLoading(true)
-        // Probe the feed for its title so the subscription has a friendly name.
-        FeedService.probeTitle(platform: resolved.platform, feedURL: resolved.feedURL) { [weak self] title in
+        // Probe the feed so the subscription has a friendly name and avatar.
+        FeedService.probeMetadata(platform: resolved.platform, feedURL: resolved.feedURL) { [weak self] metadata in
             DispatchQueue.main.async {
                 guard let self = self else { return }
                 self.setLoading(false)
 
-                let resolvedTitle = (title?.isEmpty == false) ? title! : resolved.platform.displayName
+                let resolvedTitle = (metadata.title?.isEmpty == false) ? metadata.title! : resolved.platform.displayName
                 let sub = Subscription(
                     title: resolvedTitle,
                     platform: resolved.platform,
-                    feedURL: resolved.feedURL
+                    feedURL: resolved.feedURL,
+                    iconURL: metadata.iconURL
                 )
                 self.store.addSubscription(sub)
 
@@ -131,6 +132,7 @@ final class AddSubscriptionVC: UIViewController {
                 FeedService.fetchEntries(for: sub) { result in
                     if case .success(let parsed) = result {
                         self.store.mergeEntries(parsed.entries, for: sub.id)
+                        self.store.updateIconURL(parsed.feedIconURL, for: sub.id)
                     }
                 }
 

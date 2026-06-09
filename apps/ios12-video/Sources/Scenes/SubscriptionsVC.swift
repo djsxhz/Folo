@@ -80,6 +80,7 @@ final class SubscriptionsVC: UIViewController {
             FeedService.fetchEntries(for: sub) { [weak self] result in
                 if case .success(let parsed) = result {
                     self?.store.mergeEntries(parsed.entries, for: sub.id)
+                    self?.store.updateIconURL(parsed.feedIconURL, for: sub.id)
                 }
                 group.leave()
             }

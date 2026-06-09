@@ -111,6 +111,7 @@ final class VideoListVC: UIViewController {
                 switch result {
                 case .success(let parsed):
                     self.store.mergeEntries(parsed.entries, for: self.subscription.id)
+                    self.store.updateIconURL(parsed.feedIconURL, for: self.subscription.id)
                 case .failure(let error):
                     self.showError(error.localizedDescription)
                 }

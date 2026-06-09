@@ -7,9 +7,13 @@ final class SubscriptionCell: UITableViewCell {
     static let reuseID = "SubscriptionCell"
 
     private let iconView = UIImageView()
+    private let fallbackLabel = UILabel()
     private let titleLabel = UILabel()
     private let subtitleLabel = UILabel()
     private let badge = BadgeView()
+
+    private var iconTask: URLSessionDataTask?
+    private var iconURL: String?
 
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: .default, reuseIdentifier: reuseIdentifier)
@@ -23,10 +27,16 @@ final class SubscriptionCell: UITableViewCell {
         accessoryType = .disclosureIndicator
 
         iconView.translatesAutoresizingMaskIntoConstraints = false
-        iconView.contentMode = .scaleAspectFit
+        iconView.contentMode = .scaleAspectFill
         iconView.layer.cornerRadius = 8
         iconView.clipsToBounds = true
         contentView.addSubview(iconView)
+
+        fallbackLabel.translatesAutoresizingMaskIntoConstraints = false
+        fallbackLabel.font = .systemFont(ofSize: 12, weight: .bold)
+        fallbackLabel.textColor = .white
+        fallbackLabel.textAlignment = .center
+        iconView.addSubview(fallbackLabel)
 
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.font = .systemFont(ofSize: 16, weight: .medium)
@@ -47,6 +57,11 @@ final class SubscriptionCell: UITableViewCell {
             iconView.widthAnchor.constraint(equalToConstant: 36),
             iconView.heightAnchor.constraint(equalToConstant: 36),
 
+            fallbackLabel.leadingAnchor.constraint(equalTo: iconView.leadingAnchor),
+            fallbackLabel.trailingAnchor.constraint(equalTo: iconView.trailingAnchor),
+            fallbackLabel.topAnchor.constraint(equalTo: iconView.topAnchor),
+            fallbackLabel.bottomAnchor.constraint(equalTo: iconView.bottomAnchor),
+
             titleLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 12),
             titleLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 12),
             titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: badge.leadingAnchor, constant: -8),
@@ -65,32 +80,52 @@ final class SubscriptionCell: UITableViewCell {
         subtitleLabel.text = subscription.platform.displayName
         badge.count = unread
 
-        // Platform-tinted placeholder icon.
-        let symbolName = "play.rectangle.fill"
-        if #available(iOS 13.0, *), let image = UIImage(systemName: symbolName) {
-            iconView.image = image
-        } else {
-            iconView.image = nil
-            iconView.backgroundColor = subscription.platform == .youtube
-                ? UIColor(red: 1.0, green: 0.0, blue: 0.0, alpha: 1.0)
-                : UIColor(red: 0.0, green: 0.63, blue: 0.84, alpha: 1.0)
-        }
-        iconView.tintColor = subscription.platform == .youtube
-            ? UIColor(red: 1.0, green: 0.0, blue: 0.0, alpha: 1.0)
-            : UIColor(red: 0.0, green: 0.63, blue: 0.84, alpha: 1.0)
+        iconTask?.cancel()
+        iconView.image = nil
+        iconView.backgroundColor = Self.fallbackColor(for: subscription.platform)
+        fallbackLabel.text = Self.fallbackText(for: subscription.platform)
+        fallbackLabel.isHidden = false
 
         // Load remote icon if available.
+        iconURL = subscription.iconURL
         if let iconURL = subscription.iconURL {
-            ImageLoader.shared.load(iconURL) { [weak self] image in
-                if let image = image { self?.iconView.image = image }
+            iconTask = ImageLoader.shared.load(iconURL) { [weak self] image in
+                guard let self = self, self.iconURL == iconURL else { return }
+                if let image = image {
+                    self.iconView.image = image
+                    self.fallbackLabel.isHidden = true
+                }
             }
         }
     }
 
     override func prepareForReuse() {
         super.prepareForReuse()
+        iconTask?.cancel()
+        iconTask = nil
+        iconURL = nil
         iconView.image = nil
         iconView.backgroundColor = .clear
+        fallbackLabel.isHidden = true
+    }
+
+    private static func fallbackText(for platform: Platform) -> String {
+        switch platform {
+        case .youtube: return "YT"
+        case .bilibili: return "B"
+        case .rss: return "RSS"
+        }
+    }
+
+    private static func fallbackColor(for platform: Platform) -> UIColor {
+        switch platform {
+        case .youtube:
+            return UIColor(red: 1.0, green: 0.0, blue: 0.0, alpha: 1.0)
+        case .bilibili:
+            return UIColor(red: 0.0, green: 0.63, blue: 0.84, alpha: 1.0)
+        case .rss:
+            return Theme.accent
+        }
     }
 }
 

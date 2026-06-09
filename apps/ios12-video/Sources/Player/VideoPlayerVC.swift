@@ -150,6 +150,7 @@ final class VideoPlayerVC: UIViewController {
                 URLQueryItem(name: "origin", value: "https://www.youtube-nocookie.com"),
                 URLQueryItem(name: "playsinline", value: "1"),
                 URLQueryItem(name: "rel", value: "0"),
+                URLQueryItem(name: "vq", value: "hd1080"),
             ]
             return comps.url?.absoluteString
         case .bilibili:
@@ -196,7 +197,7 @@ final class VideoPlayerVC: UIViewController {
     }
 
     private static func playerHTML(embedURL: String, platform: Platform) -> String {
-        let bottomInset = platform == .youtube ? "64px" : "0"
+        let bottomInset = platform == .youtube ? "128px" : "0"
         let escapedURL = htmlEscaped(embedURL)
         return """
         <!doctype html>

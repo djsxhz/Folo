@@ -8,9 +8,10 @@ import Foundation
 /// - RSS 2.0 (RSSHub for Bilibili): `<rss><channel><item>` with `<title>`, `<link>`, `<pubDate>`,
 ///   and a thumbnail discovered from `<media:thumbnail>`, `<enclosure>`, or an `<img>` in the description.
 final class FeedParser: NSObject {
-    /// Result of a parse: the feed's own title plus its entries.
+    /// Result of a parse: the feed's own metadata plus its entries.
     struct ParseResult {
         var feedTitle: String?
+        var feedIconURL: String?
         var entries: [VideoEntry]
     }
 
@@ -19,10 +20,12 @@ final class FeedParser: NSObject {
 
     // Parser state.
     private var feedTitle: String?
+    private var feedIconURL: String?
     private var entries: [VideoEntry] = []
 
     // Whether we have already captured the channel/feed-level title.
     private var capturedFeedTitle = false
+    private var inFeedImage = false
 
     // Current element bookkeeping.
     private var elementStack: [String] = []
@@ -61,7 +64,7 @@ final class FeedParser: NSObject {
         parser.delegate = self
         parser.shouldProcessNamespaces = false
         guard parser.parse() else { return nil }
-        return ParseResult(feedTitle: feedTitle, entries: entries)
+        return ParseResult(feedTitle: feedTitle, feedIconURL: feedIconURL, entries: entries)
     }
 }
 
@@ -85,13 +88,28 @@ extension FeedParser: XMLParserDelegate {
             curThumbnail = nil
             curPublished = nil
             curDescription = nil
-        case "media:thumbnail", "media:content":
-            if let url = attributeDict["url"], curThumbnail == nil {
-                curThumbnail = url
+        case "image":
+            if !inItem {
+                inFeedImage = true
             }
+        default:
+            break
+        }
+
+        if let thumbnailURL = Self.thumbnailURL(for: elementName, attributes: attributeDict) {
+            if inItem,
+               curThumbnail == nil {
+                curThumbnail = thumbnailURL
+            } else if !inItem,
+                      feedIconURL == nil {
+                feedIconURL = thumbnailURL
+            }
+        }
+
+        switch elementName {
         case "enclosure":
             if let type = attributeDict["type"], type.hasPrefix("image"),
-               let url = attributeDict["url"], curThumbnail == nil {
+               let url = Self.normalizedHTTPURL(attributeDict["url"]), curThumbnail == nil {
                 curThumbnail = url
             }
         case "link":
@@ -108,6 +126,12 @@ extension FeedParser: XMLParserDelegate {
         currentText += string
     }
 
+    func parser(_ parser: XMLParser, foundCDATA CDATABlock: Data) {
+        if let string = String(data: CDATABlock, encoding: .utf8) {
+            currentText += string
+        }
+    }
+
     func parser(
         _ parser: XMLParser,
         didEndElement elementName: String,
@@ -120,9 +144,17 @@ extension FeedParser: XMLParserDelegate {
         case "title":
             if inItem {
                 if curTitle == nil { curTitle = text }
-            } else if !capturedFeedTitle, !text.isEmpty {
+            } else if !inFeedImage, !capturedFeedTitle, !text.isEmpty {
                 feedTitle = text
                 capturedFeedTitle = true
+            }
+        case "logo", "icon":
+            if !inItem, feedIconURL == nil {
+                feedIconURL = Self.normalizedHTTPURL(text)
+            }
+        case "url":
+            if !inItem, inFeedImage, feedIconURL == nil {
+                feedIconURL = Self.normalizedHTTPURL(text)
             }
         case "yt:videoId":
             curVideoID = text
@@ -142,6 +174,10 @@ extension FeedParser: XMLParserDelegate {
         case "entry", "item":
             finishCurrentItem()
             inItem = false
+        case "image":
+            if !inItem {
+                inFeedImage = false
+            }
         default:
             break
         }
@@ -166,6 +202,9 @@ extension FeedParser: XMLParserDelegate {
         if thumb == nil, let desc = curDescription {
             thumb = Self.firstImageURL(in: desc)
         }
+        if thumb == nil, let vid = curVideoID, !vid.isEmpty {
+            thumb = "https://i.ytimg.com/vi/\(vid)/hqdefault.jpg"
+        }
 
         let entry = VideoEntry(
             id: id,
@@ -188,10 +227,50 @@ extension FeedParser: XMLParserDelegate {
 
     /// Extracts the first `<img src="...">` URL from an HTML fragment.
     private static func firstImageURL(in html: String) -> String? {
-        guard let range = html.range(of: "src=\"", options: .caseInsensitive) else { return nil }
-        let rest = html[range.upperBound...]
-        guard let end = rest.firstIndex(of: "\"") else { return nil }
-        let url = String(rest[..<end])
-        return url.hasPrefix("http") ? url : nil
+        let pattern = #"<img\b[^>]*\bsrc\s*=\s*(['"])(.*?)\1"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return nil
+        }
+        let range = NSRange(html.startIndex..<html.endIndex, in: html)
+        guard let match = regex.firstMatch(in: html, options: [], range: range),
+              match.numberOfRanges >= 3,
+              let srcRange = Range(match.range(at: 2), in: html)
+        else { return nil }
+        return normalizedHTTPURL(String(html[srcRange]))
+    }
+
+    private static func normalizedHTTPURL(_ raw: String?) -> String? {
+        guard let raw = raw else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if trimmed.hasPrefix("//") {
+            return "https:\(trimmed)"
+        }
+        let lower = trimmed.lowercased()
+        if lower.hasPrefix("http://") || lower.hasPrefix("https://") {
+            return trimmed
+        }
+        return nil
+    }
+
+    private static func thumbnailURL(for elementName: String, attributes: [String: String]) -> String? {
+        if isThumbnailElement(elementName) {
+            return normalizedHTTPURL(attributes["url"] ?? attributes["href"])
+        }
+        guard isMediaContentElement(elementName) else { return nil }
+        let type = attributes["type"]?.lowercased()
+        let medium = attributes["medium"]?.lowercased()
+        guard type?.hasPrefix("image") == true || medium == "image" else { return nil }
+        return normalizedHTTPURL(attributes["url"] ?? attributes["href"])
+    }
+
+    private static func isThumbnailElement(_ elementName: String) -> Bool {
+        let lower = elementName.lowercased()
+        return lower == "thumbnail" || lower.hasSuffix(":thumbnail")
+    }
+
+    private static func isMediaContentElement(_ elementName: String) -> Bool {
+        let lower = elementName.lowercased()
+        return lower == "content" || lower.hasSuffix(":content")
     }
 }

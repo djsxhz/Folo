@@ -32,6 +32,14 @@ enum FeedService {
         let feedURL: String
     }
 
+    /// Feed-level metadata discovered while probing a subscription.
+    struct FeedMetadata {
+        let title: String?
+        let iconURL: String?
+    }
+
+    private static let browserUserAgent = "Mozilla/5.0 (iPad; CPU OS 12_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/12.1 Mobile/15E148 Safari/604.1"
+
     // MARK: - Input resolution
 
     /// Resolve arbitrary user input (a pasted URL or raw id) into a feed URL.
@@ -162,7 +170,7 @@ enum FeedService {
         }
         var request = URLRequest(url: url)
         request.timeoutInterval = 20
-        request.setValue("Mozilla/5.0 (compatible; Flo/1.0)", forHTTPHeaderField: "User-Agent")
+        request.setValue(browserUserAgent, forHTTPHeaderField: "User-Agent")
 
         URLSession.shared.dataTask(with: request) { data, _, error in
             if let error = error {
@@ -182,18 +190,31 @@ enum FeedService {
         }.resume()
     }
 
-    /// Fetch just the feed title (used when adding a subscription to get its name).
+    /// Fetch feed metadata used when adding a subscription to get its name and icon.
+    static func probeMetadata(
+        platform: Platform,
+        feedURL: String,
+        completion: @escaping (FeedMetadata) -> Void
+    ) {
+        let probe = Subscription(title: "", platform: platform, feedURL: feedURL)
+        fetchEntries(for: probe) { result in
+            switch result {
+            case .success(let parsed):
+                completion(FeedMetadata(title: parsed.feedTitle, iconURL: parsed.feedIconURL))
+            case .failure:
+                completion(FeedMetadata(title: nil, iconURL: nil))
+            }
+        }
+    }
+
+    /// Fetch just the feed title (used by older call sites).
     static func probeTitle(
         platform: Platform,
         feedURL: String,
         completion: @escaping (String?) -> Void
     ) {
-        let probe = Subscription(title: "", platform: platform, feedURL: feedURL)
-        fetchEntries(for: probe) { result in
-            switch result {
-            case .success(let parsed): completion(parsed.feedTitle)
-            case .failure: completion(nil)
-            }
+        probeMetadata(platform: platform, feedURL: feedURL) { metadata in
+            completion(metadata.title)
         }
     }
 }

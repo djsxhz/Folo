@@ -8,6 +8,7 @@ import UIKit
 final class ImageLoader {
 
     static let shared = ImageLoader()
+    private static let browserUserAgent = "Mozilla/5.0 (iPad; CPU OS 12_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/12.1 Mobile/15E148 Safari/604.1"
 
     private let cache = NSCache<NSURL, UIImage>()
     private let session: URLSession
@@ -56,7 +57,7 @@ final class ImageLoader {
         if let host = url.host?.lowercased(), host.contains("hdslb.com") {
             request.setValue("https://www.bilibili.com", forHTTPHeaderField: "Referer")
         }
-        request.setValue("Mozilla/5.0 (compatible; Flo/1.0)", forHTTPHeaderField: "User-Agent")
+        request.setValue(browserUserAgent, forHTTPHeaderField: "User-Agent")
         return request
     }
 }

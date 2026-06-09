@@ -98,6 +98,17 @@ final class SubscriptionStore {
         notifyChange()
     }
 
+    func updateIconURL(_ iconURL: String?, for subscriptionID: String) {
+        guard let iconURL = iconURL?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !iconURL.isEmpty,
+              let index = subscriptions.firstIndex(where: { $0.id == subscriptionID }),
+              subscriptions[index].iconURL != iconURL
+        else { return }
+        subscriptions[index].iconURL = iconURL
+        persistSubscriptions()
+        notifyChange()
+    }
+
     // MARK: - Entries
 
     func entries(for subscriptionID: String) -> [VideoEntry] {
