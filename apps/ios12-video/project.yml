@@ -1,6 +1,10 @@
 name: Flo
 options:
   bundleIdPrefix: app.flo
+  # Pin the project file format so the pinned Xcode 15.4 can open it.
+  # Newer XcodeGen defaults to objectVersion 77 (Xcode 16), which 15.4
+  # refuses to read ("future Xcode project file format").
+  objectVersion: 56
   deploymentTarget:
     iOS: "12.0"
   createIntermediateGroups: true
