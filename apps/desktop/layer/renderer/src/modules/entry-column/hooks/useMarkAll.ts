@@ -3,6 +3,8 @@ import { getCategoryFeedIds } from "@follow/store/subscription/getter"
 import { unreadSyncService } from "@follow/store/unread/store"
 
 import { getGeneralSettings } from "~/atoms/settings/general"
+import { LOCAL_READER_MODE } from "~/local-reader/mode"
+import { markLocalBatchAsRead } from "~/local-reader/service"
 
 export type MarkAllFilter =
   | {
@@ -31,46 +33,76 @@ export const markAllByRoute = async (
 
   const { hidePrivateSubscriptionsInTimeline: excludePrivate } = getGeneralSettings()
   if (typeof feedId === "number" || isAllFeeds) {
-    unreadSyncService.markBatchAsRead({
+    const input = {
       view,
       time,
       excludePrivate,
-    })
+    }
+    if (LOCAL_READER_MODE) {
+      return markLocalBatchAsRead(input)
+    } else {
+      unreadSyncService.markBatchAsRead(input)
+      return
+    }
   } else if (inboxId) {
-    unreadSyncService.markBatchAsRead({
+    const input = {
       filter: {
         inboxId,
       },
       view,
       time,
       excludePrivate,
-    })
+    }
+    if (LOCAL_READER_MODE) {
+      return markLocalBatchAsRead(input)
+    } else {
+      unreadSyncService.markBatchAsRead(input)
+      return
+    }
   } else if (listId) {
-    unreadSyncService.markBatchAsRead({
+    const input = {
       filter: {
         listId,
       },
       view,
       time,
       excludePrivate,
-    })
+    }
+    if (LOCAL_READER_MODE) {
+      return markLocalBatchAsRead(input)
+    } else {
+      unreadSyncService.markBatchAsRead(input)
+      return
+    }
   } else if (folderIds?.length) {
-    unreadSyncService.markBatchAsRead({
+    const input = {
       filter: {
         feedIdList: folderIds,
       },
       view,
       time,
       excludePrivate,
-    })
+    }
+    if (LOCAL_READER_MODE) {
+      return markLocalBatchAsRead(input)
+    } else {
+      unreadSyncService.markBatchAsRead(input)
+      return
+    }
   } else if (feedId) {
-    unreadSyncService.markBatchAsRead({
+    const input = {
       filter: {
         feedIdList: feedId?.split(","),
       },
       view,
       time,
       excludePrivate,
-    })
+    }
+    if (LOCAL_READER_MODE) {
+      return markLocalBatchAsRead(input)
+    } else {
+      unreadSyncService.markBatchAsRead(input)
+      return
+    }
   }
 }

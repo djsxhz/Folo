@@ -1,0 +1,58 @@
+name: Flo
+options:
+  bundleIdPrefix: app.flo
+  deploymentTarget:
+    iOS: "12.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+settings:
+  base:
+    # Keep the binary small and friendly to the 1GB iPad Air 1.
+    SWIFT_VERSION: "5.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "12.0"
+    TARGETED_DEVICE_FAMILY: "1,2" # iPhone + iPad
+    ENABLE_BITCODE: NO
+    # Allow unsigned CI builds; signing happens later via Sideloadly.
+    CODE_SIGN_IDENTITY: ""
+    CODE_SIGNING_REQUIRED: NO
+    CODE_SIGNING_ALLOWED: NO
+
+targets:
+  Flo:
+    type: application
+    platform: iOS
+    deploymentTarget: "12.0"
+    sources:
+      - path: Sources
+      - path: Resources
+    info:
+      path: Resources/Info.plist
+      properties:
+        CFBundleDisplayName: Flo
+        CFBundleName: Flo
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        LSRequiresIPhoneOS: true
+        UILaunchStoryboardName: LaunchScreen
+        UIUserInterfaceStyle: Automatic
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        ITSAppUsesNonExemptEncryption: false
+        # RSSHub / player endpoints are HTTPS, but allow inline media playback
+        # and arbitrary loads so embedded players (Bilibili/YouTube) work.
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        UIRequiresFullScreen: false
+        UIViewControllerBasedStatusBarAppearance: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.flo.video
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        INFOPLIST_KEY_CFBundleDisplayName: Flo

@@ -7,6 +7,8 @@ import { withoutTrailingSlash, withTrailingSlash } from "ufo"
 
 import { previewBackPath } from "~/atoms/preview"
 import { useModalStack } from "~/components/ui/modal/stacked/hooks"
+import { LocalFeedForm } from "~/local-reader/LocalFeedForm"
+import { LOCAL_READER_MODE } from "~/local-reader/mode"
 import type { FeedFormDataValuesType } from "~/modules/discover/FeedForm"
 import { FeedForm } from "~/modules/discover/FeedForm"
 import type { ListFormDataValuesType } from "~/modules/discover/ListForm"
@@ -51,6 +53,30 @@ export const useFollow = () => {
             <ListForm
               id={options?.id}
               defaultValues={options?.defaultValues as ListFormDataValuesType}
+              onSuccess={onSuccess}
+            />
+          ) : LOCAL_READER_MODE ? (
+            <LocalFeedForm
+              feedId={id}
+              url={url}
+              defaultValues={
+                options?.defaultValues
+                  ? {
+                      title:
+                        "title" in options.defaultValues
+                          ? (options.defaultValues.title as string | undefined)
+                          : undefined,
+                      category:
+                        "category" in options.defaultValues
+                          ? ((options.defaultValues.category as string | null | undefined) ?? null)
+                          : null,
+                      view:
+                        "view" in options.defaultValues
+                          ? Number(options.defaultValues.view)
+                          : undefined,
+                    }
+                  : undefined
+              }
               onSuccess={onSuccess}
             />
           ) : (

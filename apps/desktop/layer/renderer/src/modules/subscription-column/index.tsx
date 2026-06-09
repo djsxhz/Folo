@@ -11,6 +11,7 @@ import { usePrefetchUnread } from "@follow/store/unread/hooks"
 import { useUserSubscriptionLimit } from "@follow/store/user/hooks"
 import { EventBus } from "@follow/utils/event-bus"
 import { clamp, cn } from "@follow/utils/utils"
+import { useQuery } from "@tanstack/react-query"
 import { useWheel } from "@use-gesture/react"
 import { Lethargy } from "lethargy"
 import { AnimatePresence, m } from "motion/react"
@@ -28,6 +29,8 @@ import { useBackHome } from "~/hooks/biz/useNavigateEntry"
 import { useReduceMotion } from "~/hooks/biz/useReduceMotion"
 import { parseView, useRouteParamsSelector } from "~/hooks/biz/useRouteParams"
 import { useTimelineList } from "~/hooks/biz/useTimelineList"
+import { LOCAL_READER_MODE } from "~/local-reader/mode"
+import { syncLocalReaderData } from "~/local-reader/service"
 import { useSettingModal } from "~/modules/settings/modal/useSettingModal"
 
 import { WindowUnderBlur } from "../../components/ui/background"
@@ -45,7 +48,16 @@ export function SubscriptionColumn({
   children,
   className,
 }: PropsWithChildren<{ className?: string }>) {
-  const { isLoading: isSubscriptionLoading } = usePrefetchSubscription()
+  const localBootstrap = useQuery({
+    queryKey: ["local-reader", "bootstrap"],
+    queryFn: syncLocalReaderData,
+    staleTime: 5 * 60 * 1000,
+    enabled: LOCAL_READER_MODE,
+  })
+  const { isLoading: remoteSubscriptionLoading } = usePrefetchSubscription()
+  const isSubscriptionLoading = LOCAL_READER_MODE
+    ? localBootstrap.isLoading
+    : remoteSubscriptionLoading
   usePrefetchUnread()
 
   const carouselRef = useRef<HTMLDivElement>(null)

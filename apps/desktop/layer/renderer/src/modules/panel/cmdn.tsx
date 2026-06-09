@@ -15,6 +15,8 @@ import { PlainModal } from "~/components/ui/modal/stacked/custom-modal"
 import { useModalStack } from "~/components/ui/modal/stacked/hooks"
 import { getRouteParams } from "~/hooks/biz/useRouteParams"
 import { ipcServices } from "~/lib/client"
+import { LocalFeedForm } from "~/local-reader/LocalFeedForm"
+import { LOCAL_READER_MODE } from "~/local-reader/mode"
 
 import { COMMAND_ID } from "../command/commands/id"
 import { FeedForm } from "../discover/FeedForm"
@@ -53,9 +55,20 @@ const CmdNPanel = () => {
     })
 
     present({
-      title: t("feed_form.add_feed"),
+      title: LOCAL_READER_MODE ? "添加订阅" : t("feed_form.add_feed"),
       modalContentClassName: "overflow-visible",
-      content: () => <FeedForm url={url} onSuccess={dismissAll} />,
+      content: () =>
+        LOCAL_READER_MODE ? (
+          <LocalFeedForm
+            url={url}
+            defaultValues={{
+              view: Number(defaultView),
+            }}
+            onSuccess={dismissAll}
+          />
+        ) : (
+          <FeedForm url={url} onSuccess={dismissAll} />
+        ),
     })
   }
 

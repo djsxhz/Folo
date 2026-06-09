@@ -12,7 +12,7 @@ import { stopPropagation } from "@follow/utils/dom"
 import { clsx, cn, isBizId } from "@follow/utils/utils"
 import { useAtom, useAtomValue } from "jotai"
 import type { FC } from "react"
-import { useCallback } from "react"
+import { useCallback, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router"
 
@@ -24,6 +24,8 @@ import { useFeature } from "~/hooks/biz/useFeature"
 import { useFollow } from "~/hooks/biz/useFollow"
 import { getRouteParams, useRouteParams } from "~/hooks/biz/useRouteParams"
 import { useLoginModal } from "~/hooks/common"
+import { LOCAL_READER_MODE } from "~/local-reader/mode"
+import { refreshAllLocalFeeds, refreshLocalFeed } from "~/local-reader/service"
 import { useSendAIShortcut } from "~/modules/ai-chat/hooks/useSendAIShortcut"
 import { COMMAND_ID } from "~/modules/command/commands/id"
 import { useRunCommandFn } from "~/modules/command/hooks/use-command"
@@ -91,6 +93,7 @@ export const EntryListHeader: FC<{
   const feedColumnShow = useSubscriptionColumnShow()
   const toggleUnreadOnlyShortcut = useCommandShortcut(COMMAND_ID.timeline.unreadOnly)
   const runCmdFn = useRunCommandFn()
+  const [isLocalRefreshing, setIsLocalRefreshing] = useState(false)
 
   const { isScrolledBeyondThreshold } = useEntryRootState()
   const isScrolledBeyondThresholdValue = useAtomValue(isScrolledBeyondThreshold)
@@ -102,12 +105,30 @@ export const EntryListHeader: FC<{
     })
   }, [sendAIShortcut])
   const showEntryHeader = isWideMode && !!entryId && entryId !== ROUTE_ENTRY_PENDING
-  const showTimelineSummaryButton = isWideMode && aiEnabled
-  const showAiTimelineToggle = aiEnabled
+  const showTimelineSummaryButton = isWideMode && aiEnabled && !LOCAL_READER_MODE
+  const showAiTimelineToggle = aiEnabled && !LOCAL_READER_MODE
 
   const handleAiTimelineButtonClick = useCallback(() => {
     setAiTimelineEnabled((prev) => !prev)
   }, [setAiTimelineEnabled])
+
+  const handleRefresh = useCallback(() => {
+    if (LOCAL_READER_MODE) {
+      setIsLocalRefreshing(true)
+      const refreshTask = feedId && isBizId(feedId) ? refreshLocalFeed(feedId) : refreshAllLocalFeeds()
+      void refreshTask.finally(() => {
+        setIsLocalRefreshing(false)
+      })
+      return
+    }
+
+    if (feed?.ownerUserId === user?.id && isBizId(routerParams.feedId!) && feed?.type === "feed") {
+      void refreshFeed()
+      return
+    }
+
+    void refetch()
+  }, [feed?.ownerUserId, feed?.type, feedId, refetch, refreshFeed, routerParams.feedId, user?.id])
 
   const renderAiTimelineButton = () => {
     if (!showAiTimelineToggle) return null
@@ -182,27 +203,13 @@ export const EntryListHeader: FC<{
             </AppendTaildingDivider>
 
             {isOnline &&
-              (feed?.ownerUserId === user?.id &&
-              isBizId(routerParams.feedId!) &&
-              feed?.type === "feed" ? (
-                <ActionButton
-                  tooltip="Refresh"
-                  onClick={() => {
-                    refreshFeed()
-                  }}
-                >
-                  <RotatingRefreshIcon isRefreshing={isPending} />
+              (
+                <ActionButton tooltip={t("entry_list_header.refetch")} onClick={handleRefresh}>
+                  <RotatingRefreshIcon
+                    isRefreshing={LOCAL_READER_MODE ? isLocalRefreshing : isPending || isRefreshing}
+                  />
                 </ActionButton>
-              ) : (
-                <ActionButton
-                  tooltip={t("entry_list_header.refetch")}
-                  onClick={() => {
-                    refetch()
-                  }}
-                >
-                  <RotatingRefreshIcon isRefreshing={isRefreshing} />
-                </ActionButton>
-              ))}
+              )}
             {!isCollection && (
               <>
                 <ActionButton

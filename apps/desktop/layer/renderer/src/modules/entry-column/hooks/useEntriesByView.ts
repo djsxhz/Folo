@@ -25,6 +25,8 @@ import { useGeneralSettingKey } from "~/atoms/settings/general"
 import { ROUTE_FEED_PENDING } from "~/constants/app"
 import { useFeature } from "~/hooks/biz/useFeature"
 import { useRouteParams } from "~/hooks/biz/useRouteParams"
+import { LOCAL_READER_MODE } from "~/local-reader/mode"
+import { syncLocalReaderData } from "~/local-reader/service"
 
 import { aiTimelineEnabledAtom } from "../atoms/ai-timeline"
 import { useIsPreviewFeed } from "./useIsPreviewFeed"
@@ -76,7 +78,7 @@ const useRemoteEntries = (): UseEntriesReturn => {
     aiTimelineEnabled,
     aiEnabled,
   ])
-  const query = useEntriesQuery(entriesOptions)
+  const query = useEntriesQuery(LOCAL_READER_MODE ? undefined : entriesOptions)
 
   const [fetchedTime, setFetchedTime] = useState<number>()
   useEffect(() => {
@@ -288,6 +290,10 @@ export const useEntriesByView = ({ onReset }: { onReset?: () => void }) => {
 
     type: remoteQuery.isReady ? ("remote" as const) : ("local" as const),
     refetch: useCallback(() => {
+      if (LOCAL_READER_MODE) {
+        return syncLocalReaderData().then(() => {})
+      }
+
       const promise = query.refetch()
       unreadSyncService.resetFromRemote()
       return promise

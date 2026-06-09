@@ -8,7 +8,10 @@ import { tracker } from "@follow/tracker"
 import { repository } from "@pkg"
 import { enableMapSet } from "immer"
 
+import { setGeneralSetting } from "~/atoms/settings/general"
 import { initI18n } from "~/i18n"
+import { LOCAL_READER_MODE } from "~/local-reader/mode"
+import { syncLocalReaderData } from "~/local-reader/service"
 import { hydrateSessionsFromLocalDb } from "~/modules/ai-chat-session"
 import { settingSyncQueue } from "~/modules/settings/helper/sync-queue"
 import { ElectronCloseEvent, ElectronShowEvent } from "~/providers/invalidate-query-provider"
@@ -83,25 +86,34 @@ export const initializeApp = async () => {
 
   apm("initializeSettings", initializeSettings)
 
+  if (LOCAL_READER_MODE) {
+    setGeneralSetting("language", "zh-CN")
+    await apm("local reader bootstrap", syncLocalReaderData)
+  }
+
   await apm("i18n", initI18n)
-  await apm("initAnalytics", initAnalytics)
+  if (!LOCAL_READER_MODE) {
+    await apm("initAnalytics", initAnalytics)
+  }
 
-  void apm("setting sync", async () => {
-    await settingSyncQueue.init()
+  if (!LOCAL_READER_MODE) {
+    void apm("setting sync", async () => {
+      await settingSyncQueue.init()
 
-    await userSyncService.whoami().catch(() => null)
+      await userSyncService.whoami().catch(() => null)
 
-    if (!whoami()) {
-      return
-    }
-    await settingSyncQueue.syncLocal()
-  }).catch((error) => {
-    appLog("setting sync failed", error)
-    void tracker.manager.captureException(error, {
-      module: "setting_sync",
-      stage: "bootstrap",
+      if (!whoami()) {
+        return
+      }
+      await settingSyncQueue.syncLocal()
+    }).catch((error) => {
+      appLog("setting sync failed", error)
+      void tracker.manager.captureException(error, {
+        module: "setting_sync",
+        stage: "bootstrap",
+      })
     })
-  })
+  }
 
   const loadingTime = Date.now() - now
   appLog(`Initialize ${APP_NAME} done,`, `${loadingTime}ms`)

@@ -23,6 +23,13 @@ import { toggleEntryReadability } from "~/hooks/biz/useEntryActions"
 import { navigateEntry } from "~/hooks/biz/useNavigateEntry"
 import { getRouteParams } from "~/hooks/biz/useRouteParams"
 import { copyToClipboard } from "~/lib/clipboard"
+import { LOCAL_READER_MODE } from "~/local-reader/mode"
+import {
+  markLocalEntryAsRead,
+  markLocalEntryAsUnread,
+  starLocalEntry,
+  unstarLocalEntry,
+} from "~/local-reader/service"
 import { markAllByRoute } from "~/modules/entry-column/hooks/useMarkAll"
 import { useGalleryModal } from "~/modules/entry-content/hooks"
 import { playEntryTts } from "~/modules/player/entry-tts"
@@ -37,6 +44,14 @@ const useCollect = () => {
   return useMutation({
     mutationFn: async ({ entryId, view }: { entryId: string; view: FeedViewType }) => {
       const { isCollection } = getRouteParams()
+      if (LOCAL_READER_MODE) {
+        return starLocalEntry({
+          entryId,
+          view,
+          invalidate: !isCollection,
+        })
+      }
+
       return collectionSyncService.starEntry({
         entryId,
         view,
@@ -56,6 +71,10 @@ const useUnCollect = () => {
   return useMutation({
     mutationFn: async (entryId: string) => {
       const { isCollection } = getRouteParams()
+      if (LOCAL_READER_MODE) {
+        return unstarLocalEntry({ entryId, invalidate: !isCollection })
+      }
+
       return collectionSyncService.unstarEntry({ entryId, invalidate: !isCollection })
     },
 
@@ -85,13 +104,15 @@ const useDeleteInboxEntry = () => {
 export const useRead = () =>
   useMutation({
     mutationFn: async ({ entryId }: { entryId: string }) =>
-      unreadSyncService.markEntryAsRead(entryId),
+      LOCAL_READER_MODE ? markLocalEntryAsRead(entryId) : unreadSyncService.markEntryAsRead(entryId),
   })
 
 export const useUnread = () =>
   useMutation({
     mutationFn: async ({ entryId }: { entryId: string }) =>
-      unreadSyncService.markEntryAsUnread(entryId),
+      LOCAL_READER_MODE
+        ? markLocalEntryAsUnread(entryId)
+        : unreadSyncService.markEntryAsUnread(entryId),
   })
 
 export const useRegisterEntryCommands = () => {

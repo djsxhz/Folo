@@ -1,25 +1,15 @@
-import { PushReceiver } from "@eneris/push-receiver"
-import { callWindowExpose } from "@follow/shared/bridge"
 import { APP_PROTOCOL, DEV, LEGACY_APP_PROTOCOL } from "@follow/shared/constants"
-import { env } from "@follow/shared/env.desktop"
-import { app, nativeTheme, Notification, shell } from "electron"
+import { app, nativeTheme, shell } from "electron"
 import contextMenu from "electron-context-menu"
 import path from "pathe"
-
-import { WindowManager } from "~/manager/window"
 
 import { getIconPath } from "../helper"
 import { initializeIpcServices } from "../ipc"
 import { checkAndCleanCodeCache, clearCacheCronJob } from "../lib/cleaner"
-import { getSessionTokenFromCookies, syncSessionToCliConfig } from "../lib/cli-session-sync"
 import { t } from "../lib/i18n"
-import { updateProxy } from "../lib/proxy"
 import { store } from "../lib/store"
-import { registerAppTray } from "../lib/tray"
-import { updateNotificationsToken } from "../lib/user"
-import { logger } from "../logger"
+import { initializeLocalReaderEngine } from "../local-reader/engine"
 import { registerAppMenu } from "../menu"
-import { registerUpdater } from "../updater"
 import { LifecycleManager } from "./lifecycle"
 
 class AppManagerStatic {
@@ -43,23 +33,8 @@ class AppManagerStatic {
     this.setupSystemConfigs()
     this.runCronJobs()
     this.registerMenuAndContextMenu()
-    this.registerPushNotifications()
 
-    updateProxy()
-    registerUpdater()
-    registerAppTray()
-
-    // Sync the desktop session to the npm CLI after cookies are ready.
-    setTimeout(async () => {
-      try {
-        const token = await getSessionTokenFromCookies()
-        if (token) {
-          await syncSessionToCliConfig(token)
-        }
-      } catch (err) {
-        logger.error("Failed to sync session to CLI on startup:", err)
-      }
-    }, 5000)
+    void initializeLocalReaderEngine()
   }
 
   private registerProtocols() {
@@ -96,86 +71,13 @@ class AppManagerStatic {
     checkAndCleanCodeCache()
   }
 
-  private async registerPushNotifications() {
-    if (!env.VITE_FIREBASE_CONFIG) {
-      return
-    }
-
-    const credentialsKey = "notifications-credentials"
-    const persistentIdsKey = "notifications-persistent-ids"
-    const credentials = store.get(credentialsKey)
-    const persistentIds = store.get(persistentIdsKey)
-
-    const instance = new PushReceiver({
-      debug: true,
-      firebase: JSON.parse(env.VITE_FIREBASE_CONFIG),
-      persistentIds: persistentIds || [],
-      credentials: credentials || undefined,
-      bundleId: "is.follow",
-      chromeId: "is.follow",
-    })
-    logger.info(
-      `PushReceiver initialized with credentials ${JSON.stringify(credentials)} and firebase config ${
-        env.VITE_FIREBASE_CONFIG
-      }`,
-    )
-
-    instance.onReady(() => {
-      logger.info("PushReceiver ready")
-    })
-
-    instance.onCredentialsChanged(({ newCredentials }) => {
-      logger.info(`PushReceiver credentials changed to ${newCredentials?.fcm?.token}`)
-      updateNotificationsToken(newCredentials)
-    })
-
-    instance.onNotification((notification) => {
-      logger.info(
-        `PushReceiver received notification: ${JSON.stringify(notification.message.data)}`,
-      )
-      const { data } = notification.message
-      if (!data) {
-        return
-      }
-      switch (data.type) {
-        case "new-entry": {
-          const notification = new Notification({
-            title: data.title as string,
-            body: data.description as string,
-          })
-          notification.on("click", () => {
-            const mainWindow = WindowManager.getMainWindowOrCreate()
-            mainWindow.restore()
-            mainWindow.focus()
-            const handlers = callWindowExpose(mainWindow)
-            handlers.navigateEntry({
-              feedId: data.feedId as string,
-              entryId: data.entryId as string,
-              view: Number.parseInt(data.view as string),
-            })
-          })
-          notification.show()
-          break
-        }
-        default: {
-          break
-        }
-      }
-      store.set(persistentIdsKey, instance.persistentIds)
-    })
-
-    try {
-      await instance.connect()
-    } catch (error) {
-      logger.error(`PushReceiver error: ${error instanceof Error ? error.stack : error}`)
-    }
-
-    logger.info("PushReceiver connected")
-  }
-
   private contextMenuDisposer?: () => void
   public registerMenuAndContextMenu() {
     registerAppMenu()
+    this.registerContextMenu()
+  }
+
+  public registerContextMenu() {
     if (this.contextMenuDisposer) {
       this.contextMenuDisposer()
     }

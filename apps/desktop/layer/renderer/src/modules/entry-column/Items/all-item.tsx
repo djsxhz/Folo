@@ -30,6 +30,7 @@ import { FeedIcon } from "~/modules/feed/feed-icon"
 import { FeedTitle } from "~/modules/feed/feed-title"
 import { getPreferredTitle } from "~/store/feed/hooks"
 
+import { UnreadDot } from "../components/UnreadDot"
 import { StarIcon } from "../star-icon"
 import { readableContentMaxWidth } from "../styles"
 import type { EntryItemStatelessProps, UniversalItemProps } from "../types"
@@ -141,13 +142,8 @@ export function AllItem({ entryId, translation, currentFeedTitle }: UniversalIte
 
   const thisFeedTitle = getPreferredTitle(related, titleEntry)
   return (
-    <div
-      className={cn(
-        "group relative flex cursor-menu items-center py-2",
-        !isRead &&
-          "before:absolute before:-left-4 before:top-[14px] before:block before:size-2 before:rounded-full before:bg-accent",
-      )}
-    >
+    <div className="group relative flex cursor-menu items-center py-2">
+      <UnreadDot visible={!isRead} dotClassName="translate-x-1" />
       {currentFeedTitle !== thisFeedTitle && (
         <FeedIcon target={related} fallback entry={iconEntry} size={16} />
       )}

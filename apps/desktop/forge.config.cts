@@ -1,6 +1,8 @@
+import { execFile } from "node:child_process"
 import crypto from "node:crypto"
 import fs, { readdirSync } from "node:fs"
 import { cp, readdir } from "node:fs/promises"
+import { promisify } from "node:util"
 
 import { FuseV1Options, FuseVersion } from "@electron/fuses"
 import { MakerAppX } from "@electron-forge/maker-appx"
@@ -21,6 +23,8 @@ const platform = process.argv.find((arg) => arg.startsWith("--platform"))?.split
 const mode = process.argv.find((arg) => arg.startsWith("--mode"))?.split("=")[1]
 const isMicrosoftStore =
   process.argv.find((arg) => arg.startsWith("--ms"))?.split("=")[1] === "true"
+const isPortableWindows =
+  process.argv.find((arg) => arg.startsWith("--portable"))?.split("=")[1] === "true"
 
 const isStaging = mode === "staging"
 
@@ -38,6 +42,7 @@ const ymlMapsMap = {
 
 const keepModules = new Set(["font-list", "vscode-languagedetection"])
 const keepLanguages = new Set(["en", "en_GB", "en-US", "en_US"])
+const execFileAsync = promisify(execFile)
 
 // remove folders & files not to be included in the app
 async function cleanSources(buildPath, _electronVersion, platform, _arch, callback) {
@@ -92,6 +97,24 @@ async function cleanSources(buildPath, _electronVersion, platform, _arch, callba
 }
 
 const noopAfterCopy = (_buildPath, _electronVersion, _platform, _arch, callback) => callback()
+
+async function adHocResignMacAppIfNeeded(appPath: string) {
+  if (process.platform !== "darwin" || process.env.OSX_SIGN_IDENTITY) {
+    return
+  }
+
+  const signTarget = appPath.endsWith(".app")
+    ? appPath
+    : readdirSync(appPath)
+        .map((entry) => path.join(appPath, entry))
+        .find((entryPath) => entryPath.endsWith(".app"))
+
+  if (!signTarget) {
+    throw new Error(`Unable to find macOS app bundle in ${appPath}`)
+  }
+
+  await execFileAsync("codesign", ["--force", "--deep", "--sign", "-", signTarget])
+}
 
 const ignorePattern = new RegExp(`^/node_modules/(?!${[...keepModules].join("|")})`)
 
@@ -221,13 +244,15 @@ const config: ForgeConfig = {
             protocol: "folo",
           }),
         ]
-      : [
-          new MakerSquirrel({
-            name: "Folo",
-            setupIcon: isStaging ? "resources/icon-staging.ico" : "resources/icon.ico",
-            iconUrl: "https://app.folo.is/favicon.ico",
-          }),
-        ]),
+      : isPortableWindows
+        ? [new MakerZIP({}, ["win32"])]
+        : [
+            new MakerSquirrel({
+              name: "Folo",
+              setupIcon: isStaging ? "resources/icon-staging.ico" : "resources/icon.ico",
+              iconUrl: "https://app.folo.is/favicon.ico",
+            }),
+          ]),
   ],
   plugins: [
     // Fuses are used to enable/disable various Electron functionality
@@ -254,6 +279,13 @@ const config: ForgeConfig = {
     },
   ],
   hooks: {
+    postPackage: async (_config, packageResult) => {
+      if (packageResult.platform !== "darwin" && packageResult.platform !== "mas") {
+        return
+      }
+
+      await Promise.all(packageResult.outputPaths.map((outputPath) => adHocResignMacAppIfNeeded(outputPath)))
+    },
     postMake: async (_config, makeResults) => {
       const yml: {
         version?: string

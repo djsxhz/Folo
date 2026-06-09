@@ -15,6 +15,7 @@ import { ErrorComponentType } from "~/components/errors/enum"
 import { PlainModal, PlainWithAnimationModal } from "~/components/ui/modal/stacked/custom-modal"
 import { DeclarativeModal } from "~/components/ui/modal/stacked/declarative-modal"
 import { ROOT_CONTAINER_ID } from "~/constants/dom"
+import { LOCAL_READER_MODE } from "~/local-reader/mode"
 import { EnvironmentIndicator } from "~/modules/app/EnvironmentIndicator"
 import { LoginModalContent } from "~/modules/auth/LoginModalContent"
 import { DebugRegistry } from "~/modules/debug/registry"
@@ -190,7 +191,7 @@ export function MainDestopLayout() {
         </main>
       </EntriesProvider>
 
-      {isAuthFail && !user && (
+      {!LOCAL_READER_MODE && isAuthFail && !user && (
         <RootPortal>
           <DeclarativeModal
             id="login"

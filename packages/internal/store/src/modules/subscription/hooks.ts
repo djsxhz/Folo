@@ -38,10 +38,15 @@ import { subscriptionSyncService, useSubscriptionStore } from "./store"
 import { getDefaultCategory } from "./utils"
 
 export const usePrefetchSubscription = (view?: FeedViewType) => {
+  const isLocalReaderMode =
+    typeof window !== "undefined" &&
+    Boolean((globalThis as { window?: { electron?: { ipcRenderer?: unknown } } }).window?.electron?.ipcRenderer)
+
   return useQuery({
     queryKey: ["subscription", view],
     queryFn: () => subscriptionSyncService.fetch(view),
     staleTime: 30 * 1000 * 60, // 30 minutes
+    enabled: !isLocalReaderMode,
   })
 }
 

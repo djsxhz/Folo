@@ -16,11 +16,21 @@ import { useSyncTheme } from "~/hooks/common"
 import { langChain } from "~/i18n"
 import { ipcServices } from "~/lib/client"
 import { loadLanguageAndApply } from "~/lib/load-language"
+import { LOCAL_READER_MODE } from "~/local-reader/mode"
 
 const useUpdateDockBadge = (setting: UISettings) => {
   const unreadCount = useUnreadAll()
 
   useEffect(() => {
+    if (LOCAL_READER_MODE) {
+      ipcServices?.dock.cancelPollingUpdateUnreadCount().then(() => {
+        if (!setting.showDockBadge) {
+          ipcServices?.dock.setDockBadge(0)
+        }
+      })
+      return
+    }
+
     if (setting.showDockBadge) {
       ipcServices?.dock.pollingUpdateUnreadCount()
     } else {

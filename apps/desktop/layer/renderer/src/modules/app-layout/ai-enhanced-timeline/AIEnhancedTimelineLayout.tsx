@@ -7,7 +7,7 @@ import { cn } from "@follow/utils"
 import { isSafari } from "@follow/utils/utils"
 import { AnimatePresence } from "motion/react"
 import type { CSSProperties } from "react"
-import { memo, useCallback, useEffect, useMemo, useRef } from "react"
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef } from "react"
 import { useResizable } from "react-resizable-layout"
 
 import { AIChatPanelStyle, useAIChatPanelStyle, useAIPanelVisibility } from "~/atoms/settings/ai"
@@ -16,6 +16,7 @@ import { m } from "~/components/common/Motion"
 import { ROUTE_ENTRY_PENDING } from "~/constants"
 import { useRouteParamsSelector } from "~/hooks/biz/useRouteParams"
 import { useShowEntryDetailsColumn } from "~/hooks/biz/useShowEntryDetailsColumn"
+import { LOCAL_READER_MODE } from "~/local-reader/mode"
 import { AIChatRoot } from "~/modules/ai-chat/components/layouts/AIChatRoot"
 import { AIChatFixedPanel } from "~/modules/app-layout/ai/AIChatFixedPanel"
 import { AIIndicator } from "~/modules/app-layout/ai/AISplineButton"
@@ -46,7 +47,7 @@ const AIEnhancedTimelineLayoutImpl = () => {
   // Compute derived values first
   const showEntryContentOnRight = showEntryDetailsColumn && hasSelectedEntry
   const isFixedPanelStyle = aiPanelStyle === AIChatPanelStyle.Fixed
-  const shouldShowFixedAI = isFixedPanelStyle && isAIPanelVisible
+  const shouldShowFixedAI = !LOCAL_READER_MODE && isFixedPanelStyle && isAIPanelVisible
   const showEntryContentOnLeft = !showEntryDetailsColumn && hasSelectedEntry
   const shouldRenderRightColumn = showEntryDetailsColumn || shouldShowFixedAI
   const shouldShowEntryBorder = showEntryDetailsColumn || shouldShowFixedAI
@@ -313,17 +314,23 @@ const AIEnhancedTimelineLayoutImpl = () => {
           </div>
         </AppLayoutGridContainerProvider>
       </div>
-      {!shouldShowFixedAI && <AIIndicator />}
+      {!LOCAL_READER_MODE && !shouldShowFixedAI && <AIIndicator />}
     </div>
   )
 }
 
 export const AIEnhancedTimelineLayout = memo(function AIEnhancedTimelineLayout() {
-  return (
-    <AIChatRoot wrapFocusable={false}>
+  const content = (
+    <>
       <AIEnhancedTimelineLayoutImpl />
       <MainViewHotkeysProvider />
-    </AIChatRoot>
+    </>
   )
+
+  if (LOCAL_READER_MODE) {
+    return <Fragment>{content}</Fragment>
+  }
+
+  return <AIChatRoot wrapFocusable={false}>{content}</AIChatRoot>
 })
 AIEnhancedTimelineLayout.displayName = "AIEnhancedTimelineLayout"

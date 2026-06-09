@@ -6,6 +6,14 @@ import { useHotkeys } from "react-hotkeys-hook"
 import { Trans, useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
+import { LOCAL_READER_MODE } from "~/local-reader/mode"
+import {
+  subscribeWithLocalReader,
+  syncLocalReaderData,
+  unsubscribeWithLocalReader,
+  updateLocalFeeds,
+} from "~/local-reader/service"
+
 import { navigateEntry } from "./useNavigateEntry"
 import { getRouteParams } from "./useRouteParams"
 
@@ -21,21 +29,45 @@ export const useDeleteSubscription = ({ onSuccess }: { onSuccess?: () => void } 
       feedIdList?: string[]
     }) => {
       if (feedIdList) {
-        await subscriptionSyncService.unsubscribe(feedIdList)
+        if (LOCAL_READER_MODE) {
+          await unsubscribeWithLocalReader(feedIdList)
+        } else {
+          await subscriptionSyncService.unsubscribe(feedIdList)
+        }
         toast.success(t("notify.unfollow_feed_many"))
         return
       }
 
       if (!subscription) return
 
-      subscriptionSyncService
-        .unsubscribe([subscription.feedId, subscription.listId])
-        .then(([feed]) => {
-          subscriptionSyncService.fetch()
+      const unsubscribePromise = LOCAL_READER_MODE
+        ? unsubscribeWithLocalReader(
+            [subscription.feedId, subscription.listId].filter(
+              (id): id is string => typeof id === "string",
+            ),
+          )
+        : subscriptionSyncService.unsubscribe([subscription.feedId, subscription.listId])
 
-          if (!subscription) return
-          if (!feed) return
-          const undo = async () => {
+      return unsubscribePromise.then((items) => {
+        const [feed] = items
+        if (LOCAL_READER_MODE) {
+          void syncLocalReaderData()
+        } else {
+          subscriptionSyncService.fetch()
+        }
+
+        if (!subscription) return
+        if (!feed) return
+        const undo = async () => {
+          if (LOCAL_READER_MODE) {
+            await subscribeWithLocalReader({
+              url: feed.type === "feed" ? feed.url : undefined,
+              feedId: feed.id,
+              view: subscription.view,
+              category: subscription.category,
+              title: feed.title ?? undefined,
+            })
+          } else {
             await subscriptionSyncService.subscribe({
               url: feed.type === "feed" ? feed.url : undefined,
               listId: feed.type === "list" ? feed.id : undefined,
@@ -46,26 +78,27 @@ export const useDeleteSubscription = ({ onSuccess }: { onSuccess?: () => void } 
               title: feed.title,
               hideFromTimeline: subscription.hideFromTimeline,
             })
-
-            toast.dismiss(toastId)
           }
 
-          const toastId = toast.warning("", {
-            duration: 3000,
-            description: <UnfollowInfo title={feed.title!} undo={undo} />,
-            action: {
-              label: (
+          toast.dismiss(toastId)
+        }
+
+        const toastId = toast.warning("", {
+          duration: 3000,
+          description: <UnfollowInfo title={feed.title!} undo={undo} />,
+          action: {
+            label: (
                 <span className={"flex items-center gap-1 px-1"}>
                   {t("words.undo")}
                   <Kbd className="inline-flex items-center border border-border bg-transparent text-white">
                     $mod+Z
                   </Kbd>
                 </span>
-              ),
-              onClick: undo,
-            },
-          })
+            ),
+            onClick: undo,
+          },
         })
+      })
     },
 
     onSuccess: (_) => {
@@ -111,11 +144,18 @@ export const useBatchUpdateSubscription = () => {
       category?: string | null
       view: number
     }) => {
-      await subscriptionSyncService.batchUpdateSubscription({
-        category,
-        feedIds: feedIdList,
-        view,
-      })
+      if (LOCAL_READER_MODE) {
+        await updateLocalFeeds(feedIdList, {
+          category,
+          view,
+        })
+      } else {
+        await subscriptionSyncService.batchUpdateSubscription({
+          category,
+          feedIds: feedIdList,
+          view,
+        })
+      }
     },
   })
 }

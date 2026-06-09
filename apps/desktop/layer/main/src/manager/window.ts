@@ -433,6 +433,15 @@ class WindowManagerStatic {
       minHeight: Math.min(this.config.minWindowSize.height, maxHeight),
     })
 
+    window.once("ready-to-show", () => {
+      if (window.isDestroyed()) {
+        return
+      }
+
+      window.show()
+      window.focus()
+    })
+
     this.bindMainWindowCloseHandlers(window)
 
     this.windows.mainWindow = window

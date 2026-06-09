@@ -22,12 +22,15 @@ import { useRouteParamsSelector } from "~/hooks/biz/useRouteParams"
 import { useI18n } from "~/hooks/common"
 import { useContextMenu } from "~/hooks/common/useContextMenu"
 import { copyToClipboard } from "~/lib/clipboard"
+import { usePresentLocalFeedModal } from "~/local-reader/LocalFeedForm"
+import { LOCAL_READER_MODE } from "~/local-reader/mode"
 import { ProfileButton } from "~/modules/user/ProfileButton"
 
 export const SubscriptionColumnHeader = memo(() => {
   const timelineId = useRouteParamsSelector((s) => s.timelineId)
   const navigateBackHome = useBackHome(timelineId)
   const navigate = useNavigate()
+  const presentLocalFeedModal = usePresentLocalFeedModal()
   const normalStyle = !window.electron || window.electron.process.platform !== "darwin"
   const { t } = useTranslation()
   return (
@@ -56,13 +59,20 @@ export const SubscriptionColumnHeader = memo(() => {
         <ActionButton
           data-testid="subscription-discover-trigger"
           shortcut="$mod+T"
-          tooltip={t("words.discover")}
-          onClick={() => navigate("/discover")}
+          tooltip={LOCAL_READER_MODE ? "添加订阅" : t("words.discover")}
+          onClick={() => {
+            if (LOCAL_READER_MODE) {
+              presentLocalFeedModal()
+              return
+            }
+
+            navigate("/discover")
+          }}
         >
           <i className="i-mgc-add-cute-re size-5 text-text-secondary" />
         </ActionButton>
 
-        <ProfileButton method="modal" animatedAvatar />
+        {!LOCAL_READER_MODE && <ProfileButton method="modal" animatedAvatar />}
         <LayoutActionButton />
       </div>
     </div>

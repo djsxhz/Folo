@@ -24,6 +24,9 @@ import { MenuItemSeparator, MenuItemText } from "~/atoms/context-menu"
 import { useModalStack } from "~/components/ui/modal/stacked/hooks"
 import { copyToClipboard } from "~/lib/clipboard"
 import { UrlBuilder } from "~/lib/url-builder"
+import { usePresentLocalFeedModal } from "~/local-reader/LocalFeedForm"
+import { LOCAL_READER_MODE } from "~/local-reader/mode"
+import { markLocalFeedAsRead } from "~/local-reader/service"
 import { useFeedClaimModal } from "~/modules/claim"
 import { COMMAND_ID } from "~/modules/command/commands/id"
 import { useCommandShortcuts } from "~/modules/command/hooks/use-command-binding"
@@ -67,6 +70,7 @@ export const useFeedActions = ({
     useMemo(() => feedIds || [feedId], [feedId, feedIds]),
   )
   const { present } = useModalStack()
+  const presentLocalFeedModal = usePresentLocalFeedModal()
   const presentDeleteSubscription = useConfirmUnsubscribeSubscriptionModal()
   const deleteSubscription = useDeleteSubscription({})
   const claimFeed = useFeedClaimModal()
@@ -97,7 +101,14 @@ export const useFeedActions = ({
         label: t("sidebar.feed_actions.mark_all_as_read"),
         shortcut: shortcuts[COMMAND_ID.subscription.markAllAsRead],
         disabled: isEntryList,
-        click: () => unreadSyncService.markFeedAsRead(isMultipleSelection ? feedIds : [feedId]),
+        click: () => {
+          if (LOCAL_READER_MODE) {
+            void markLocalFeedAsRead(isMultipleSelection ? feedIds || [feedId] : [feedId])
+            return
+          }
+
+          unreadSyncService.markFeedAsRead(isMultipleSelection ? feedIds : [feedId])
+        },
         supportMultipleSelection: true,
         requiresLogin: true,
       }),
@@ -107,6 +118,13 @@ export const useFeedActions = ({
         shortcut: "E",
         disabled: isInbox,
         click: () => {
+          if (LOCAL_READER_MODE) {
+            presentLocalFeedModal({
+              feedId,
+            })
+            return
+          }
+
           present({
             modalContentClassName: "overflow-visible",
             title: t("sidebar.feed_actions.edit_feed"),
@@ -303,6 +321,7 @@ export const useFeedActions = ({
     isMultipleSelection,
     listByView,
     present,
+    presentLocalFeedModal,
     presentCategoryCreationModal,
     presentDeleteSubscription,
     removeFeedFromListMutation,

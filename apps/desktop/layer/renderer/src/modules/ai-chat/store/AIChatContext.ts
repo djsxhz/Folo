@@ -4,6 +4,7 @@ import { createContext, use } from "react"
 import type { StoreApi } from "zustand"
 import type { UseBoundStoreWithEqualityFn } from "zustand/traditional"
 
+import { createAIChatStore } from "./store"
 import type { AiChatStore } from "./store"
 
 export type AIPanelRefs = {
@@ -16,10 +17,15 @@ export const AIChatStoreContext = createContext<UseBoundStoreWithEqualityFn<Stor
   null!,
 )
 
+const fallbackAIChatStore = createAIChatStore()
+
 export const useAIChatStore = () => {
   const store = use(AIChatStoreContext)
-  if (!store && import.meta.env.DEV) {
-    throw new Error("useAIChatStore must be used within a AIChatStoreContext")
+  if (!store) {
+    if (import.meta.env.DEV) {
+      console.warn("useAIChatStore is using the fallback store because no AIChatStoreContext exists")
+    }
+    return fallbackAIChatStore
   }
   return store
 }

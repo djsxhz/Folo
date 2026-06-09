@@ -12,9 +12,14 @@ import {
 } from "~/atoms/settings/ai"
 import { useActionLanguage } from "~/atoms/settings/general"
 import { AISummaryCardBase } from "~/components/ui/ai-summary-card"
+import { LOCAL_READER_MODE } from "~/local-reader/mode"
 
 export function AISummary({ entryId }: { entryId: string }) {
   const { t } = useTranslation()
+  if (LOCAL_READER_MODE) {
+    return null
+  }
+
   const summarySetting = useEntry(entryId, (state) => state.settings?.summary)
   const isInReadabilitySuccess = useEntryIsInReadabilitySuccess(entryId)
   const showAISummary = useShowAISummary(summarySetting)

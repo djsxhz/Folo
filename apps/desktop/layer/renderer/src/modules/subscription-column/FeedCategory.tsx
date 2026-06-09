@@ -31,6 +31,8 @@ import { useAddFeedToFeedList } from "~/hooks/biz/useFeedActions"
 import { useNavigateEntry } from "~/hooks/biz/useNavigateEntry"
 import { getRouteParams, useRouteParamsSelector } from "~/hooks/biz/useRouteParams"
 import { useContextMenu } from "~/hooks/common/useContextMenu"
+import { LOCAL_READER_MODE } from "~/local-reader/mode"
+import { changeLocalCategoryView, markLocalFeedAsRead } from "~/local-reader/service"
 
 import { useModalStack } from "../../components/ui/modal/stacked/hooks"
 import { ListCreationModalContent } from "../settings/tabs/lists/modals"
@@ -158,6 +160,14 @@ function FeedCategoryImpl({
     mutationFn: async (nextView: FeedViewType) => {
       if (!folderName) return
       if (typeof view !== "number") return
+      if (LOCAL_READER_MODE) {
+        return changeLocalCategoryView({
+          category: folderName,
+          currentView: view,
+          newView: nextView,
+        })
+      }
+
       return subscriptionSyncService.changeCategoryView({
         category: folderName,
         currentView: view,
@@ -195,6 +205,11 @@ function FeedCategoryImpl({
           new MenuItemText({
             label: t("sidebar.feed_column.context_menu.mark_as_read"),
             click: () => {
+              if (LOCAL_READER_MODE) {
+                void markLocalFeedAsRead(ids)
+                return
+              }
+
               unreadSyncService.markFeedAsRead(ids)
             },
             requiresLogin: true,

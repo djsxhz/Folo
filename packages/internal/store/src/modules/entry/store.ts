@@ -555,9 +555,11 @@ class EntrySyncServices {
   }
 
   async fetchEntryDetail(entryId: EntryId | undefined, isInbox?: boolean) {
-    if (!isBizId(entryId)) return null
+    if (!entryId) return null
 
     const currentEntry = getEntry(entryId)
+    if (!isBizId(entryId)) return currentEntry ?? null
+
     const res =
       currentEntry?.inboxHandle || isInbox
         ? await api().entries.inbox.get({ id: entryId })

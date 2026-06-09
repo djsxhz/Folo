@@ -1,6 +1,8 @@
 import { useIsLoggedIn } from "@follow/store/user/hooks"
 import { useCallback } from "react"
 
+import { LOCAL_READER_MODE } from "~/local-reader/mode"
+
 import { useLoginModal } from "./useLoginModal"
 
 export const useRequireLogin = () => {
@@ -8,6 +10,10 @@ export const useRequireLogin = () => {
   const showLoginModal = useLoginModal()
 
   const ensureLogin = useCallback(() => {
+    if (LOCAL_READER_MODE) {
+      return true
+    }
+
     if (isLoggedIn) {
       return true
     }

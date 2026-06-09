@@ -29,6 +29,8 @@ import { getRouteParams, useRouteParams, useRouteParamsSelector } from "~/hooks/
 import { useShowEntryDetailsColumn } from "~/hooks/biz/useShowEntryDetailsColumn"
 import { useFeedSafeUrl } from "~/hooks/common/useFeedSafeUrl"
 import { useRequireLogin } from "~/hooks/common/useRequireLogin"
+import { LOCAL_READER_MODE } from "~/local-reader/mode"
+import { markLocalEntryAsRead } from "~/local-reader/service"
 
 export const EntryItemWrapper: FC<
   {
@@ -64,7 +66,11 @@ export const EntryItemWrapper: FC<
       if (asRead) return
       if (!entry?.feedId) return
 
-      unreadSyncService.markEntryAsRead(entry.id)
+      if (LOCAL_READER_MODE) {
+        void markLocalEntryAsRead(entry.id)
+      } else {
+        unreadSyncService.markEntryAsRead(entry.id)
+      }
     },
     233,
     {
@@ -134,7 +140,11 @@ export const EntryItemWrapper: FC<
       if (!shouldNavigate) return
       if (!entry?.feedId) return
       if (!asRead) {
-        unreadSyncService.markEntryAsRead(entry.id)
+        if (LOCAL_READER_MODE) {
+          void markLocalEntryAsRead(entry.id)
+        } else {
+          unreadSyncService.markEntryAsRead(entry.id)
+        }
       }
 
       navigate({

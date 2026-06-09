@@ -7,6 +7,7 @@ import { stopPropagation } from "@follow/utils/dom"
 import { useSetAtom } from "jotai"
 import { useCallback } from "react"
 
+import { LOCAL_READER_MODE } from "~/local-reader/mode"
 import { useSendAIShortcut } from "~/modules/ai-chat/hooks/useSendAIShortcut"
 import { aiTimelineEnabledAtom } from "~/modules/entry-column/atoms/ai-timeline"
 import { useSettingModal } from "~/modules/settings/modal/use-setting-modal-hack"
@@ -30,6 +31,22 @@ export const EntryPlaceholderLogo = () => {
   const handleToggleAiTimeline = useCallback(() => {
     setAiTimelineEnabled((prev) => !prev)
   }, [setAiTimelineEnabled])
+
+  if (LOCAL_READER_MODE) {
+    return (
+      <div
+        data-hide-in-print
+        onContextMenu={stopPropagation}
+        className="flex w-full min-w-0 flex-col items-center justify-center gap-3 px-12 pb-6 text-center text-lg font-medium text-text-secondary duration-500"
+      >
+        <i className="i-mgc-book-2-cute-re size-16 text-text-tertiary" />
+        <div>选择一篇内容开始阅读</div>
+        <div className="max-w-md text-sm font-normal text-text-tertiary">
+          左侧添加订阅源后，这里会按照 Folo 的原始阅读布局展示文章和视频内容。
+        </div>
+      </div>
+    )
+  }
 
   const buttons = [
     {

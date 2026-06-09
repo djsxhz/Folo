@@ -22,6 +22,7 @@ import { FeedIcon } from "~/modules/feed/feed-icon"
 import { FeedTitle } from "~/modules/feed/feed-title"
 
 import { socialMediaContentWidthAtom } from "../atoms/social-media-content-width"
+import { UnreadDot } from "../components/UnreadDot"
 import { StarIcon } from "../star-icon"
 import { readableContentMaxWidth } from "../styles"
 import type { EntryItemStatelessProps, EntryListItemFC } from "../types"
@@ -95,14 +96,8 @@ export const SocialMediaItem: EntryListItemFC = ({ entryId, translation }) => {
     : CollapsedSocialMediaItem
 
   return (
-    <div
-      className={cn(
-        "relative flex py-4",
-        "group",
-        !asRead &&
-          "before:absolute before:-left-3 before:top-8 before:block before:size-2 before:rounded-full before:bg-accent",
-      )}
-    >
+    <div className="group relative flex py-4">
+      <UnreadDot visible={!asRead} className="pt-8" dotClassName="translate-x-1" />
       <FeedIcon fallback target={feed} entry={iconEntry} size={32} className="mt-1" />
       <div ref={ref} className="ml-2 min-w-0 flex-1">
         <div className="-mt-0.5 flex-1 text-sm">

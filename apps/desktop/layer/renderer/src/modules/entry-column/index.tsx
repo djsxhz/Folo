@@ -17,6 +17,8 @@ import { FeedNotFound } from "~/components/errors/FeedNotFound"
 import { FEED_COLLECTION_LIST, HotkeyScope, ROUTE_FEED_PENDING } from "~/constants"
 import { useNavigateEntry } from "~/hooks/biz/useNavigateEntry"
 import { useRouteParams, useRouteParamsSelector } from "~/hooks/biz/useRouteParams"
+import { LOCAL_READER_MODE } from "~/local-reader/mode"
+import { markLocalEntryAsRead } from "~/local-reader/service"
 import { useFeedQuery } from "~/queries/feed"
 import { useFeedHeaderTitle } from "~/store/feed/hooks"
 
@@ -74,6 +76,11 @@ function EntryColumnContent() {
 
     if (isCollection || isPendingEntry) return
     if (!entry?.feedId) return
+
+    if (LOCAL_READER_MODE) {
+      void markLocalEntryAsRead(activeEntryId)
+      return
+    }
 
     if (!isLoggedIn) return
     unreadSyncService.markEntryAsRead(activeEntryId)

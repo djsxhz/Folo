@@ -11,6 +11,7 @@ import { useShowAITranslation } from "~/atoms/ai-translation"
 import { useEntryIsInReadability, useEntryIsInReadabilitySuccess } from "~/atoms/readability"
 import { useActionLanguage, useGeneralSettingKey } from "~/atoms/settings/general"
 import { useModalStack } from "~/components/ui/modal/stacked/hooks"
+import { LOCAL_READER_MODE } from "~/local-reader/mode"
 
 import { ImageGalleryContent } from "./components/ImageGalleryContent"
 
@@ -43,7 +44,9 @@ export const useEntryContent = (entryId: string) => {
     const { inboxHandle, content, readabilityContent } = state
     return { inboxId: inboxHandle, content, readabilityContent }
   })
-  const { error, data, isPending } = usePrefetchEntryDetail(entryId)
+  const { error, data, isPending } = usePrefetchEntryDetail(
+    LOCAL_READER_MODE ? undefined : entryId,
+  )
 
   const isInReadabilityMode = useEntryIsInReadability(entryId)
   const isReadabilitySuccess = useEntryIsInReadabilitySuccess(entryId)
@@ -77,8 +80,8 @@ export const useEntryContent = (entryId: string) => {
     const content = translatedContent || entryContent
     return {
       content,
-      error,
-      isPending,
+      error: LOCAL_READER_MODE ? null : error,
+      isPending: LOCAL_READER_MODE ? false : isPending,
     }
   }, [
     contentTranslated?.content,
@@ -86,6 +89,7 @@ export const useEntryContent = (entryId: string) => {
     data?.content,
     entry?.content,
     error,
+    LOCAL_READER_MODE,
     isInReadabilityMode,
     isPending,
     entry?.readabilityContent,

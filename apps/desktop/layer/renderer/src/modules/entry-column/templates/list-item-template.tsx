@@ -23,6 +23,7 @@ import { FeedIcon } from "~/modules/feed/feed-icon"
 import { FeedTitle } from "~/modules/feed/feed-title"
 import { getPreferredTitle } from "~/store/feed/hooks"
 
+import { UnreadDot } from "../components/UnreadDot"
 import { StarIcon } from "../star-icon"
 import type { UniversalItemProps } from "../types"
 
@@ -167,13 +168,12 @@ export function ListItem({
   }
 
   return (
-    <div
-      className={cn(
-        "group relative flex cursor-menu py-3.5",
-        !isRead &&
-          "before:absolute before:-left-3 before:top-5 before:block before:size-2 before:rounded-full before:bg-accent",
-      )}
-    >
+    <div className="group relative flex cursor-menu py-3.5">
+      <UnreadDot
+        visible={!isRead}
+        className="absolute -left-3 top-[21px]"
+        dotClassName="-translate-x-1"
+      />
       <FeedIcon target={related} fallback entry={iconEntry} size={24} />
       <div
         className={cn("-mt-0.5 ml-1 h-fit flex-1 text-sm leading-tight", lineClamp.global)}

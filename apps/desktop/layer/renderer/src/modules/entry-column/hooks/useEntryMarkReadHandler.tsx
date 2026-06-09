@@ -7,6 +7,8 @@ import { useEventCallback } from "usehooks-ts"
 
 import { useGeneralSettingKey } from "~/atoms/settings/general"
 import { useRouteParamsSelector } from "~/hooks/biz/useRouteParams"
+import { LOCAL_READER_MODE } from "~/local-reader/mode"
+import { markLocalEntryAsRead } from "~/local-reader/service"
 
 export const useEntryMarkReadHandler = (entriesIds: string[]) => {
   const renderAsRead = useGeneralSettingKey("renderMarkUnread")
@@ -59,7 +61,11 @@ export function batchMarkRead(ids: string[]) {
 
   if (batchLikeIds.length > 0) {
     for (const id of batchLikeIds) {
-      unreadSyncService.markEntryAsRead(id)
+      if (LOCAL_READER_MODE) {
+        void markLocalEntryAsRead(id)
+      } else {
+        unreadSyncService.markEntryAsRead(id)
+      }
     }
   }
 }
