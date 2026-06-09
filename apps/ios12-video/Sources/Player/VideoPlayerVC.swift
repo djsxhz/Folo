@@ -33,6 +33,9 @@ final class VideoPlayerVC: UIViewController {
         let config = WKWebViewConfiguration()
         config.allowsInlineMediaPlayback = true
         config.mediaTypesRequiringUserActionForPlayback = []
+        // Share the persistent cookie store so a Bilibili login (SESSDATA)
+        // performed in Settings unlocks higher resolutions here.
+        config.websiteDataStore = WKWebsiteDataStore.default()
 
         let webView = WKWebView(frame: view.bounds, configuration: config)
         webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -95,7 +98,7 @@ final class VideoPlayerVC: UIViewController {
         if resolvedPlatform == .rss {
             webView?.load(request)
         } else {
-            let html = Self.playerHTML(embedURL: embed, platform: resolvedPlatform)
+            let html = Self.playerHTML(embedURL: embed)
             webView?.loadHTMLString(html, baseURL: Self.baseURL(for: url, platform: resolvedPlatform))
         }
     }
@@ -150,7 +153,6 @@ final class VideoPlayerVC: UIViewController {
                 URLQueryItem(name: "origin", value: "https://www.youtube-nocookie.com"),
                 URLQueryItem(name: "playsinline", value: "1"),
                 URLQueryItem(name: "rel", value: "0"),
-                URLQueryItem(name: "vq", value: "hd1080"),
             ]
             return comps.url?.absoluteString
         case .bilibili:
@@ -158,11 +160,14 @@ final class VideoPlayerVC: UIViewController {
             var comps = URLComponents(string: "https://player.bilibili.com/player.html")!
             comps.queryItems = [
                 URLQueryItem(name: "isOutside", value: "true"),
-                URLQueryItem(name: "autoplay", value: "false"),
+                URLQueryItem(name: "autoplay", value: "true"),
                 URLQueryItem(name: "danmaku", value: "false"),
                 URLQueryItem(name: "muted", value: "false"),
                 URLQueryItem(name: "highQuality", value: "true"),
                 URLQueryItem(name: "high_quality", value: "1"),
+                // Request 1080P (qn=80). Only honored when a valid SESSDATA
+                // login cookie is present; otherwise Bilibili caps the stream.
+                URLQueryItem(name: "qn", value: "80"),
                 URLQueryItem(name: "as_wide", value: "1"),
                 URLQueryItem(name: "bvid", value: bvid),
             ]
@@ -196,8 +201,7 @@ final class VideoPlayerVC: UIViewController {
         }
     }
 
-    private static func playerHTML(embedURL: String, platform: Platform) -> String {
-        let bottomInset = platform == .youtube ? "128px" : "0"
+    private static func playerHTML(embedURL: String) -> String {
         let escapedURL = htmlEscaped(embedURL)
         return """
         <!doctype html>
@@ -213,15 +217,23 @@ final class VideoPlayerVC: UIViewController {
               overflow: hidden;
               background: #000;
             }
+            /* Center the player and keep a 16:9 box that fits the screen,
+               leaving symmetric black bars (matches Folo's web player). */
+            body {
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
             .player {
-              position: fixed;
-              left: 0;
-              top: 0;
-              right: 0;
-              bottom: \(bottomInset);
+              position: relative;
+              width: min(100vw, calc(100vh * 16 / 9));
+              height: min(100vh, calc(100vw * 9 / 16));
               background: #000;
             }
             iframe {
+              position: absolute;
+              left: 0;
+              top: 0;
               display: block;
               width: 100%;
               height: 100%;

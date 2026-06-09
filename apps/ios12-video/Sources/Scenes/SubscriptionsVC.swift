@@ -21,6 +21,8 @@ final class SubscriptionsVC: UIViewController {
             action: #selector(addTapped)
         )
 
+        navigationItem.leftBarButtonItem = settingsBarButton()
+
         setupTableView()
 
         NotificationCenter.default.addObserver(
@@ -52,6 +54,30 @@ final class SubscriptionsVC: UIViewController {
     }
 
     // MARK: - Actions
+
+    private func settingsBarButton() -> UIBarButtonItem {
+        if #available(iOS 13.0, *) {
+            return UIBarButtonItem(
+                image: UIImage(systemName: "gearshape"),
+                style: .plain,
+                target: self,
+                action: #selector(settingsTapped)
+            )
+        }
+        return UIBarButtonItem(
+            title: "设置",
+            style: .plain,
+            target: self,
+            action: #selector(settingsTapped)
+        )
+    }
+
+    @objc private func settingsTapped() {
+        let settingsVC = SettingsVC()
+        let nav = UINavigationController(rootViewController: settingsVC)
+        Theme.apply(to: nav.navigationBar)
+        present(nav, animated: true)
+    }
 
     @objc private func addTapped() {
         let addVC = AddSubscriptionVC()
