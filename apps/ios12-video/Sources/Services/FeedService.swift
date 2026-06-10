@@ -38,8 +38,6 @@ enum FeedService {
         let iconURL: String?
     }
 
-    private static let browserUserAgent = "Mozilla/5.0 (iPad; CPU OS 12_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/12.1 Mobile/15E148 Safari/604.1"
-
     // MARK: - Input resolution
 
     /// Resolve arbitrary user input (a pasted URL or raw id) into a feed URL.
@@ -170,7 +168,6 @@ enum FeedService {
         }
         var request = URLRequest(url: url)
         request.timeoutInterval = 20
-        request.setValue(browserUserAgent, forHTTPHeaderField: "User-Agent")
 
         URLSession.shared.dataTask(with: request) { data, _, error in
             if let error = error {
