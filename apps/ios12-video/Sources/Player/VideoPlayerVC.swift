@@ -70,7 +70,6 @@ final class VideoPlayerVC: UIViewController {
         webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         webView.backgroundColor = .black
         webView.isOpaque = false
-        webView.scrollView.isScrollEnabled = false
         webView.scrollView.contentInsetAdjustmentBehavior = .never
         webView.navigationDelegate = self
         view.addSubview(webView)
@@ -217,21 +216,7 @@ final class VideoPlayerVC: UIViewController {
             return "https://m.youtube.com/watch?v=\(id)"
         case .bilibili:
             guard let bvid = bilibiliBVID(from: pageURL) else { return nil }
-            var comps = URLComponents(string: "https://player.bilibili.com/player.html")!
-            comps.queryItems = [
-                URLQueryItem(name: "isOutside", value: "true"),
-                URLQueryItem(name: "autoplay", value: "true"),
-                URLQueryItem(name: "danmaku", value: "false"),
-                URLQueryItem(name: "muted", value: "false"),
-                URLQueryItem(name: "highQuality", value: "true"),
-                URLQueryItem(name: "high_quality", value: "1"),
-                // Request specific quality via qn parameter.
-                // Only honored when a valid SESSDATA login cookie is present.
-                URLQueryItem(name: "qn", value: "\(currentQuality.rawValue)"),
-                URLQueryItem(name: "as_wide", value: "1"),
-                URLQueryItem(name: "bvid", value: bvid),
-            ]
-            return comps.url?.absoluteString
+            return "https://m.bilibili.com/video/\(bvid)"
         case .rss:
             return pageURL.hasPrefix("http") ? pageURL : nil
         }
