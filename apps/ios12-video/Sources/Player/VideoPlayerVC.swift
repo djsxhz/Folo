@@ -214,16 +214,7 @@ final class VideoPlayerVC: UIViewController {
         switch platform {
         case .youtube:
             guard let id = youtubeID(from: pageURL) else { return nil }
-            var comps = URLComponents(string: "https://www.youtube-nocookie.com/embed/\(id)")!
-            comps.queryItems = [
-                URLQueryItem(name: "autoplay", value: "1"),
-                URLQueryItem(name: "controls", value: "1"),
-                URLQueryItem(name: "fs", value: "1"),
-                URLQueryItem(name: "origin", value: "https://www.youtube-nocookie.com"),
-                URLQueryItem(name: "playsinline", value: "1"),
-                URLQueryItem(name: "rel", value: "0"),
-            ]
-            return comps.url?.absoluteString
+            return "https://m.youtube.com/watch?v=\(id)"
         case .bilibili:
             guard let bvid = bilibiliBVID(from: pageURL) else { return nil }
             var comps = URLComponents(string: "https://player.bilibili.com/player.html")!
