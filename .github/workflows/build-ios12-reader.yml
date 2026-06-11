@@ -1,0 +1,97 @@
+name: Build Rolo (iOS 12)
+
+# Builds an unsigned .ipa for the Rolo iOS 12 article-reader app.
+# Download the artifact, then sideload it onto the iPad (e.g. with Sideloadly)
+# using a free Apple ID.
+
+on:
+  push:
+    branches:
+      - "**"
+    paths:
+      - "apps/ios12-reader/**"
+      - ".github/workflows/build-ios12-reader.yml"
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: apps/ios12-reader
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Xcode 16 raised the minimum deployment target above iOS 12, so we pin
+      # to Xcode 15.4 which can still target iOS 12.0.
+      - name: Select Xcode 15.4
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      # Newer XcodeGen writes objectVersion 77 (Xcode 16) regardless of the
+      # project.yml setting, which the pinned Xcode 15.4 refuses to open.
+      # Force the generated project back to a format 15.4 can read.
+      - name: Force compatible project format
+        run: sed -i '' 's/objectVersion = 77;/objectVersion = 56;/' Rolo.xcodeproj/project.pbxproj
+
+      - name: Build (unsigned archive)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project Rolo.xcodeproj \
+            -scheme Rolo \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$PWD/build/Rolo.xcarchive" \
+            archive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM="" \
+            | xcpretty || xcodebuild \
+            -project Rolo.xcodeproj \
+            -scheme Rolo \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$PWD/build/Rolo.xcarchive" \
+            archive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM=""
+
+      - name: Package unsigned .ipa
+        run: |
+          set -e
+          APP_PATH="build/Rolo.xcarchive/Products/Applications/Rolo.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "Rolo.app not found at $APP_PATH"
+            ls -R build/Rolo.xcarchive/Products || true
+            exit 1
+          fi
+          rm -rf build/Payload build/Rolo.ipa
+          mkdir -p build/Payload
+          cp -R "$APP_PATH" build/Payload/
+          (cd build && zip -qry Rolo.ipa Payload)
+          echo "Built unsigned IPA:"
+          ls -lh build/Rolo.ipa
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Rolo-unsigned-ipa
+          path: apps/ios12-reader/build/Rolo.ipa
+          if-no-files-found: error
+          retention-days: 14
