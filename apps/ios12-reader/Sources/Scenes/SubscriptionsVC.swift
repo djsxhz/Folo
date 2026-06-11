@@ -7,6 +7,8 @@ final class SubscriptionsVC: UIViewController {
     private let store = SubscriptionStore.shared
     private let refreshControl = UIRefreshControl()
 
+    var onSubscriptionSelected: ((Subscription) -> Void)?
+
     private var subscriptions: [Subscription] { store.subscriptions }
 
     override func viewDidLoad() {
@@ -138,6 +140,10 @@ extension SubscriptionsVC: UITableViewDataSource, UITableViewDelegate {
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
         let sub = subscriptions[indexPath.row]
+        if let onSubscriptionSelected = onSubscriptionSelected {
+            onSubscriptionSelected(sub)
+            return
+        }
         let listVC = ArticleListVC(subscription: sub)
         navigationController?.pushViewController(listVC, animated: true)
     }

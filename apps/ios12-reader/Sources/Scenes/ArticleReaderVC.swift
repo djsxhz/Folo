@@ -13,6 +13,7 @@ final class ArticleReaderVC: UIViewController {
 
     private let entry: ArticleEntry
     private let subscriptionTitle: String
+    private let showsBackButton: Bool
 
     private var webView: WKWebView!
     private let activity = UIActivityIndicatorView(style: .gray)
@@ -40,9 +41,10 @@ final class ArticleReaderVC: UIViewController {
         set { UserDefaults.standard.set(newValue.rawValue, forKey: Self.themeKey) }
     }
 
-    init(entry: ArticleEntry, subscriptionTitle: String) {
+    init(entry: ArticleEntry, subscriptionTitle: String, showsBackButton: Bool = true) {
         self.entry = entry
         self.subscriptionTitle = subscriptionTitle
+        self.showsBackButton = showsBackButton
         super.init(nibName: nil, bundle: nil)
         hidesBottomBarWhenPushed = true
     }
@@ -61,6 +63,8 @@ final class ArticleReaderVC: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = backgroundColor(for: readerTheme)
         title = ""
+        navigationItem.largeTitleDisplayMode = .never
+        navigationItem.hidesBackButton = !showsBackButton
 
         setupNavigationItems()
         setupWebView()

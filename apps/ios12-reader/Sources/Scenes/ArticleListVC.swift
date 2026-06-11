@@ -6,20 +6,27 @@ import UIKit
 final class ArticleListVC: UIViewController {
 
     private let subscription: Subscription
+    private let usesCompactLayout: Bool
     private let store = SubscriptionStore.shared
     private let refreshControl = UIRefreshControl()
 
     private let tableView = UITableView(frame: .zero, style: .plain)
 
     private var unreadOnly = false
+    private var selectedEntryID: String?
+    private var didAutoSelectInitialArticle = false
+
+    var onArticleSelected: ((ArticleEntry) -> Void)?
+    var automaticallySelectsFirstArticle = false
 
     private var displayedEntries: [ArticleEntry] {
         let all = store.entries(for: subscription.id)
         return unreadOnly ? all.filter { !$0.isRead } : all
     }
 
-    init(subscription: Subscription) {
+    init(subscription: Subscription, usesCompactLayout: Bool = false) {
         self.subscription = subscription
+        self.usesCompactLayout = usesCompactLayout
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -28,6 +35,9 @@ final class ArticleListVC: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         title = subscription.title
+        if usesCompactLayout {
+            navigationItem.largeTitleDisplayMode = .never
+        }
         view.backgroundColor = Theme.background
 
         setupNavigationItems()
@@ -47,8 +57,9 @@ final class ArticleListVC: UIViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        tableView.reloadData()
+        reloadTablePreservingSelection()
         updateBackgroundView()
+        selectInitialArticleIfNeeded()
     }
 
     private func setupNavigationItems() {
@@ -77,7 +88,7 @@ final class ArticleListVC: UIViewController {
         tableView.dataSource = self
         tableView.delegate = self
         tableView.separatorInset = UIEdgeInsets(top: 0, left: 16, bottom: 0, right: 16)
-        tableView.estimatedRowHeight = 110
+        tableView.estimatedRowHeight = usesCompactLayout ? 96 : 110
         tableView.rowHeight = UITableView.automaticDimension
         tableView.register(ArticleCell.self, forCellReuseIdentifier: ArticleCell.reuseID)
         view.addSubview(tableView)
@@ -107,8 +118,9 @@ final class ArticleListVC: UIViewController {
     @objc private func toggleUnreadOnly() {
         unreadOnly.toggle()
         navigationItem.rightBarButtonItems = [navigationItem.rightBarButtonItems![0], unreadToggleItem()]
-        tableView.reloadData()
+        reloadTablePreservingSelection()
         updateBackgroundView()
+        selectInitialArticleIfNeeded()
     }
 
     @objc private func markAllReadTapped() {
@@ -117,8 +129,10 @@ final class ArticleListVC: UIViewController {
 
     @objc private func storeDidChange() {
         DispatchQueue.main.async { [weak self] in
-            self?.tableView.reloadData()
-            self?.updateBackgroundView()
+            guard let self = self else { return }
+            self.reloadTablePreservingSelection()
+            self.updateBackgroundView()
+            self.selectInitialArticleIfNeeded()
         }
     }
 
@@ -141,6 +155,53 @@ final class ArticleListVC: UIViewController {
             tableView.backgroundView = nil
         }
     }
+
+    private func reloadTablePreservingSelection() {
+        tableView.reloadData()
+        guard let selectedEntryID = selectedEntryID,
+              let row = displayedEntries.firstIndex(where: { $0.id == selectedEntryID })
+        else {
+            selectedEntryID = nil
+            return
+        }
+        tableView.selectRow(
+            at: IndexPath(row: row, section: 0),
+            animated: false,
+            scrollPosition: .none
+        )
+    }
+
+    private func selectInitialArticleIfNeeded() {
+        guard automaticallySelectsFirstArticle,
+              onArticleSelected != nil,
+              !didAutoSelectInitialArticle,
+              selectedEntryID == nil,
+              let first = displayedEntries.first
+        else { return }
+
+        didAutoSelectInitialArticle = true
+        selectEntry(first, animated: false)
+    }
+
+    private func selectEntry(_ entry: ArticleEntry, animated: Bool) {
+        store.markRead(entryID: entry.id, in: subscription.id)
+
+        if let onArticleSelected = onArticleSelected {
+            selectedEntryID = entry.id
+            if let row = displayedEntries.firstIndex(where: { $0.id == entry.id }) {
+                tableView.selectRow(
+                    at: IndexPath(row: row, section: 0),
+                    animated: animated,
+                    scrollPosition: .none
+                )
+            }
+            onArticleSelected(entry)
+            return
+        }
+
+        let reader = ArticleReaderVC(entry: entry, subscriptionTitle: subscription.title)
+        navigationController?.pushViewController(reader, animated: true)
+    }
 }
 
 extension ArticleListVC: UITableViewDataSource, UITableViewDelegate {
@@ -150,15 +211,15 @@ extension ArticleListVC: UITableViewDataSource, UITableViewDelegate {
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: ArticleCell.reuseID, for: indexPath) as! ArticleCell
-        cell.configure(with: displayedEntries[indexPath.row])
+        cell.configure(with: displayedEntries[indexPath.row], compact: usesCompactLayout)
         return cell
     }
 
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        tableView.deselectRow(at: indexPath, animated: true)
         let entry = displayedEntries[indexPath.row]
-        store.markRead(entryID: entry.id, in: subscription.id)
-        let reader = ArticleReaderVC(entry: entry, subscriptionTitle: subscription.title)
-        navigationController?.pushViewController(reader, animated: true)
+        if onArticleSelected == nil {
+            tableView.deselectRow(at: indexPath, animated: true)
+        }
+        selectEntry(entry, animated: true)
     }
 }

@@ -85,7 +85,13 @@ final class ArticleCell: UITableViewCell {
         ])
     }
 
-    func configure(with entry: ArticleEntry) {
+    func configure(with entry: ArticleEntry, compact: Bool = false) {
+        titleLabel.font = .systemFont(ofSize: compact ? 14 : 16, weight: .semibold)
+        summaryLabel.font = .systemFont(ofSize: compact ? 12 : 13)
+        metaLabel.font = .systemFont(ofSize: compact ? 11 : 12)
+        titleLabel.numberOfLines = compact ? 3 : 2
+        summaryLabel.numberOfLines = compact ? 2 : 2
+
         titleLabel.text = entry.title
         titleLabel.textColor = entry.isRead ? Theme.secondaryLabel : Theme.label
         summaryLabel.text = entry.summary
@@ -97,8 +103,8 @@ final class ArticleCell: UITableViewCell {
         thumbnailURL = entry.thumbnailURL
         let hasThumbnail = entry.thumbnailURL != nil
         thumbnail.isHidden = !hasThumbnail
-        thumbnailWidth.constant = hasThumbnail ? 88 : 0
-        thumbnailLeading.constant = hasThumbnail ? 12 : 0
+        thumbnailWidth.constant = hasThumbnail ? (compact ? 72 : 88) : 0
+        thumbnailLeading.constant = hasThumbnail ? (compact ? 8 : 12) : 0
 
         if let urlString = entry.thumbnailURL {
             ImageLoader.shared.load(urlString) { [weak self] image in

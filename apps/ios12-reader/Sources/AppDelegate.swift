@@ -10,11 +10,17 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     ) -> Bool {
         let window = UIWindow(frame: UIScreen.main.bounds)
 
-        let root = SubscriptionsVC()
-        let nav = UINavigationController(rootViewController: root)
-        Theme.apply(to: nav.navigationBar)
+        let rootViewController: UIViewController
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            rootViewController = ReaderSplitVC()
+        } else {
+            let root = SubscriptionsVC()
+            let nav = UINavigationController(rootViewController: root)
+            Theme.apply(to: nav.navigationBar)
+            rootViewController = nav
+        }
 
-        window.rootViewController = nav
+        window.rootViewController = rootViewController
         if #available(iOS 13.0, *) {
             window.backgroundColor = .systemBackground
         } else {
