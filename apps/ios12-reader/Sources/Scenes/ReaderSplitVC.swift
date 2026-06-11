@@ -8,6 +8,10 @@ final class ReaderSplitVC: UISplitViewController {
     private let primaryNav: UINavigationController
     private let detailNav: UINavigationController
 
+    convenience init() {
+        self.init(nibName: nil, bundle: nil)
+    }
+
     override init(nibName nibNameOrNil: String?, bundle nibBundleOrNil: Bundle?) {
         let subscriptionsVC = SubscriptionsVC()
         self.subscriptionsVC = subscriptionsVC

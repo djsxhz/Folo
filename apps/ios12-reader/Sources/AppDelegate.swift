@@ -12,7 +12,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
 
         let rootViewController: UIViewController
         if UIDevice.current.userInterfaceIdiom == .pad {
-            rootViewController = ReaderSplitVC()
+            rootViewController = ReaderSplitVC(nibName: nil, bundle: nil)
         } else {
             let root = SubscriptionsVC()
             let nav = UINavigationController(rootViewController: root)
